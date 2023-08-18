@@ -137,5 +137,3 @@ dmypy.json
 /SODA10M/
 #models
 /models/ops/
-#datasets
-/datasets/*.py
