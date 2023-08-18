@@ -47,7 +47,7 @@ def coco_to_voc_detection(coco_annotation_file, target_folder):
 
 
 if __name__ == '__main__':
-    coco_annotation_file = 'SODA10M/labeled/annotations/instance_val_md.json'
+    coco_annotation_file = 'SODA10M/labeled/annotations/instance_train_md.json'
     target_folder = 'data/OWDETR/VOC2007'
     coco_to_voc_detection(coco_annotation_file, target_folder)
     imagesets(coco_annotation_file, target_folder)

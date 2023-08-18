@@ -134,5 +134,8 @@ dmypy.json
 #data
 /data/
 /CODA/
+/SODA10M/
 #models
 /models/ops/
+#datasets
+/datasets/*.py
