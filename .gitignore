@@ -137,3 +137,5 @@ dmypy.json
 /SODA10M/
 #models
 /models/ops/
+/output_prototype/
+/clip/
