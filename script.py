@@ -2,6 +2,7 @@ import torch
 import os
 import shutil
 import json
+#
 os.makedirs('SODA10M/labeled/new_train',exist_ok=True)
 os.makedirs('SODA10M/labeled/new_val',exist_ok=True)
 for file_name in os.listdir('SODA10M/labeled/train'):

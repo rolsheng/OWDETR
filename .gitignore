@@ -139,3 +139,6 @@ dmypy.json
 /models/ops/
 #datasets
 /datasets/*.py
+/output_prototype/
+/clip/
+
