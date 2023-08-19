@@ -174,7 +174,7 @@ class RandomSizeCrop(object):
         region = T.RandomCrop.get_params(img, [h, w])
         return crop(img, target, region)
 class RandomResizeCrop(object):
-    def __init__(self,size,scale=(0.4,1.0),ratio=(3.0 / 4.0, 4.0 / 3.0), interpolation=Image.bicubic):
+    def __init__(self,size,scale=(0.4,1.0),ratio=(3.0 / 4.0, 4.0 / 3.0), interpolation=Image.BICUBIC):
         self.size = size
         self.scale = scale
         self.ratio = ratio

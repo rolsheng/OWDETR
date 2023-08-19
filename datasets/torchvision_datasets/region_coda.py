@@ -2,7 +2,7 @@ import os
 import os.path as osp
 from typing import Callable, Optional
 from torchvision.datasets import VisionDataset
-from open_world import VOC_COCO_CLASS_NAMES
+from .open_world import VOC_COCO_CLASS_NAMES
 from typing import Any
 from PIL import Image
 class RegionCodaDataset(VisionDataset):
@@ -25,7 +25,7 @@ class RegionCodaDataset(VisionDataset):
             label = [cls_name]
             source_path = osp.join(self.root,cls_name)
             file_names = os.listdir(source_path)
-            file_names = [osp.join(self.root,file_name) for file_name in file_names if file_name.endswith('.jpg')]
+            file_names = [osp.join(source_path,file_name) for file_name in file_names if file_name.endswith('.jpg')]
             self.images.extend(file_names)
             self.labels.extend(label*len(file_names))
         
@@ -44,6 +44,8 @@ class RegionCodaDataset(VisionDataset):
             img,target = self.transforms(img,target)
         return img,target
 
+def build_datasets(root,transforms):
+    return RegionCodaDataset(root=root,transforms=transforms)
 
         
         

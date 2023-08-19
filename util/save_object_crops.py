@@ -34,6 +34,7 @@ def parse_args():
         description='Generate the object crops from Coda')
     parser.add_argument('--anno-path', default="data/OWDETR/VOC2007/Annotations",help='path of the xml-format annotation file')
     parser.add_argument('--img-root', default="data/OWDETR/VOC2007/JPEGImages",help='path of the image')
+    parser.add_argument('--img-set',default='train.txt')
     parser.add_argument('--save-root', default="data/OWDETR/object_crops",help='path to save the object crops')
     parser.add_argument('--scaling-factor', type=float, default=0.2,
                         help='factor for extending the object box')
@@ -106,16 +107,19 @@ def main():
     save_root = args.save_root
     scaling_factor = args.scaling_factor
     min_size = args.min_size
-
+    img_set = os.path.join('data/OWDETR/VOC2007/ImageSets/Main',args.img_set)
+    img_sets = []
+    with open(img_set,'r') as txt:
+        img_sets = [line.strip() for line in txt.readlines()]
     if not os.path.exists(save_root):
         os.mkdir(save_root)
     image_infos = {}
     image_anns = {}
     image_cats = VOC_COCO_CLASS_NAMES
-    for xml_file in os.listdir(anno_path):
-        image_info,image_anno = parse_xml(os.path.join(anno_path,xml_file))
-        image_infos[xml_file.split('.')[0]]=image_info
-        image_anns[xml_file.split('.')[0]]=image_anno
+    for xml_file in img_sets:
+        image_info,image_anno = parse_xml(os.path.join(anno_path,xml_file+'.xml'))
+        image_infos[xml_file]=image_info
+        image_anns[xml_file]=image_anno
 
 
     num_imgs = len(list(image_infos.keys()))
