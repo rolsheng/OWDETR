@@ -5,19 +5,59 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "inferece_custom_images",
+            "type": "python",
+            "request": "launch",
+            "program": "main_open_world.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "--test",
+                "--input","CODA/test/images",
+                "--inference_ckpt","exps/OWDETR_t4_ft/checkpoint0179.pth",
+                "--output_dir","output_custom_images",
+                "--PREV_INTRODUCED_CLS",
+                "22",
+                "--CUR_INTRODUCED_CLS",
+                "8",
+                "--NC_branch",
+            ]
+        },
+        {
             "name": "train",
             "type": "python",
             "request": "launch",
             "program": "main_open_world.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--output_dir", "exps/OWDETR_t4",  
-                    "--eval_every", "1",
-            "--PREV_INTRODUCED_CLS", "22", "--CUR_INTRODUCED_CLS", "8",
-             "--train_set", "t4_train","--test_set", "test" , 
-            "--unmatched_boxes", "--epochs", "160", "--top_unk", "5",
-            "--featdim", "1024", "--NC_branch", "--nc_loss_coef", "0.1", "--nc_epoch", "9",
-            "--pretrain", "exps/OWDETR_t3_ft/checkpoint0129.pth" ]
+            "args": [
+                "--output_dir",
+                "exps/OWDETR_t4",
+                "--eval_every",
+                "1",
+                "--PREV_INTRODUCED_CLS",
+                "22",
+                "--CUR_INTRODUCED_CLS",
+                "8",
+                "--train_set",
+                "t4_train",
+                "--test_set",
+                "test",
+                "--unmatched_boxes",
+                "--epochs",
+                "160",
+                "--top_unk",
+                "5",
+                "--featdim",
+                "1024",
+                "--NC_branch",
+                "--nc_loss_coef",
+                "0.1",
+                "--nc_epoch",
+                "9",
+                "--pretrain",
+                "exps/OWDETR_t3_ft/checkpoint0129.pth"
+            ]
         }
     ]
 }
