@@ -46,7 +46,7 @@ def get_args_parser():
     parser.add_argument('--test',default=False,action='store_true')
     parser.add_argument('--inference_ckpt',type=str,default='',help='checkpoint for inference custom images')
     parser.add_argument('--input',type=str,default='',help='The path to input images')
-    parser.add_argument('--viz',type=str,default=True,help='whether to viz prediction on custom images')
+    parser.add_argument('--viz',type=str,default=False,help='whether to viz prediction on custom images')
     # Variants of Deformable DETR
     parser.add_argument('--with_box_refine', default=False, action='store_true')
     parser.add_argument('--two_stage', default=False, action='store_true')

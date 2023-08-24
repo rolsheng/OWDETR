@@ -17,6 +17,7 @@ from typing import Iterable
 from tqdm import tqdm
 from PIL import Image,ImageDraw,ImageFont
 import cv2
+import json
 import torch
 import util.misc as utils
 from datasets.coco_eval import CocoEvaluator
@@ -194,10 +195,10 @@ def submmit_format(results,image_info = None,viz = False):
                         (255,255,255),
                         2)
         result = {
-            "image_id":image_id,
+            "image_id":int(image_id),
             "category_id":Base_CLASS_NAME.index(class_name)+1 if class_name in Base_CLASS_NAME else 8,
-            "boxes":box_xyxy_to_xywh(box),
-            "scores":score
+            "bbox":box_xyxy_to_xywh(box),
+            "score":score
         }
         results_format.append(result)
     if viz:
@@ -226,6 +227,10 @@ def inference(model, postprocessors, data_loader, device, output_dir,viz = False
                         viz = viz
                     )
         )
+    with open(os.path.join(output_dir,'inference.json'),'w') as fp:
+        json.dump(json_results,fp)
+        print('done!')
+        
   
        
 

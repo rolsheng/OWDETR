@@ -15,12 +15,14 @@
                 "--test",
                 "--input","CODA/test/images",
                 "--inference_ckpt","exps/OWDETR_t4_ft/checkpoint0179.pth",
+                "--viz","False",
                 "--output_dir","output_custom_images",
                 "--PREV_INTRODUCED_CLS",
                 "22",
                 "--CUR_INTRODUCED_CLS",
                 "8",
                 "--NC_branch",
+                
             ]
         },
         {
