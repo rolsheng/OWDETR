@@ -192,7 +192,7 @@ def submmit_format(results,image_info = None,viz = False):
                         (int(box[0]),int(box[1])),
                         cv2.FONT_HERSHEY_SIMPLEX,
                         0.5,
-                        (255,255,255),
+                        (0,255,0),
                         2)
         result = {
             "image_id":int(image_id),

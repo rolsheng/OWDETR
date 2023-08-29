@@ -15,14 +15,15 @@
                 "--test",
                 "--input","CODA/test/images",
                 "--inference_ckpt","exps/OWDETR_t4_ft/checkpoint0179.pth",
-                "--viz","False",
+                "--viz","True",
                 "--output_dir","output_custom_images",
                 "--PREV_INTRODUCED_CLS",
                 "22",
                 "--CUR_INTRODUCED_CLS",
                 "8",
                 "--NC_branch",
-                
+                "--visual_prompts","output_prototype/prototype.pth",
+                "--dim_prompt", "512",
             ]
         },
         {
@@ -44,7 +45,7 @@
                 "--train_set",
                 "t4_train",
                 "--test_set",
-                "test",
+                "val",
                 "--unmatched_boxes",
                 "--epochs",
                 "160",
@@ -58,7 +59,10 @@
                 "--nc_epoch",
                 "9",
                 "--pretrain",
-                "exps/OWDETR_t3_ft/checkpoint0129.pth"
+                "exps/OWDETR_t3_ft/checkpoint0129.pth",
+                "--visual_prompts","output_prototype/L2norm_prototype.pth",
+                "--dim_prompt","512"
+              
             ]
         }
     ]

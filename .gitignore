@@ -130,7 +130,7 @@ dmypy.json
 #ckpt
 /ckpt/
 #exps
-/exps/
+/exps*/
 #data
 /data/
 /CODA/

@@ -20,20 +20,25 @@ from util.misc import inverse_sigmoid
 from models.ops.modules import MSDeformAttn
 
 from einops import rearrange
-
+from .transformer import Fusion
 class DeformableTransformer(nn.Module):
     def __init__(self, d_model=256, nhead=8,
                  num_encoder_layers=6, num_decoder_layers=6, dim_feedforward=1024, dropout=0.1,
                  activation="relu", return_intermediate_dec=False,
                  num_feature_levels=4, dec_n_points=4,  enc_n_points=4,
-                 two_stage=False, two_stage_num_proposals=300):
+                 two_stage=False, two_stage_num_proposals=300,
+                 dim_prompt = 512):
         super().__init__()
 
         self.d_model = d_model
         self.nhead = nhead
         self.two_stage = two_stage
         self.two_stage_num_proposals = two_stage_num_proposals
-
+        # build Fusion Block
+        self.fusion = Fusion(num_feature_levels,
+                             in_dim=dim_prompt,
+                             out_dim=d_model
+                             )
         encoder_layer = DeformableTransformerEncoderLayer(d_model, dim_feedforward,
                                                           dropout, activation,
                                                           num_feature_levels, nhead, enc_n_points)
@@ -127,7 +132,7 @@ class DeformableTransformer(nn.Module):
     def to_4d(self, x,h,w):
         return rearrange(x, 'b (h w) c -> b c h w',h=h,w=w)
 
-    def forward(self, srcs, masks, pos_embeds, query_embed=None):
+    def forward(self, srcs, masks, pos_embeds, query_embed=None,visual_prompts = None):
 
         assert self.two_stage or query_embed is not None
 
@@ -145,6 +150,8 @@ class DeformableTransformer(nn.Module):
             pos_embed = pos_embed.flatten(2).transpose(1, 2)
             lvl_pos_embed = pos_embed + self.level_embed[lvl].view(1, 1, -1)
             lvl_pos_embed_flatten.append(lvl_pos_embed)
+            if isinstance(visual_prompts,torch.Tensor):
+                src = self.fusion(src,visual_prompts)    
             src_flatten.append(src)
             mask_flatten.append(mask)
         
@@ -398,4 +405,5 @@ def build_deforamble_transformer(args):
         dec_n_points=args.dec_n_points,
         enc_n_points=args.enc_n_points,
         two_stage=args.two_stage,
-        two_stage_num_proposals=args.num_queries)
+        two_stage_num_proposals=args.num_queries,
+        dim_prompt=args.dim_prompt)

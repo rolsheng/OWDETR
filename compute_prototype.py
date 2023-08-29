@@ -47,7 +47,7 @@ def evaluator(model,dataloader):
     torch.save(gt_labels,'output_prototype/gt_labels.pth')
     
     for label_id in range(num_cls):
-        class_prototype[VOC_COCO_CLASS_NAMES[label_id]] = torch.mean(region_features[gt_labels==label_id],dim=0)
+        class_prototype[label_id] = torch.mean(region_features[gt_labels==label_id],dim=0)
     torch.save(class_prototype,"output_prototype/prototype.pth")
     
     return class_prototype

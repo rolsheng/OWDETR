@@ -38,7 +38,7 @@ class DeformableDETR(nn.Module):
     """ This is the Deformable DETR module that performs object detection """
     def __init__(self, backbone, transformer, num_classes, num_queries, num_feature_levels,
                  aux_loss=True, with_box_refine=False, two_stage=False, 
-                 unmatched_boxes=False, novelty_cls=False, featdim=1024):
+                 unmatched_boxes=False, novelty_cls=False, featdim=1024,visual_prompts=""):
         """ Initializes the model.
         Parameters:
             backbone: torch module of the backbone to be used. See backbone.py
@@ -51,6 +51,7 @@ class DeformableDETR(nn.Module):
             two_stage: two-stage Deformable DETR
         """
         super().__init__()
+        self.visual_prompts = visual_prompts
 
         self.num_queries = num_queries
         self.transformer = transformer
@@ -186,7 +187,7 @@ class DeformableDETR(nn.Module):
         if not self.two_stage:
             query_embeds = self.query_embed.weight
         
-        hs, init_reference, inter_references, enc_outputs_class, enc_outputs_coord_unact = self.transformer(srcs, masks, pos, query_embeds)
+        hs, init_reference, inter_references, enc_outputs_class, enc_outputs_coord_unact = self.transformer(srcs, masks, pos, query_embeds,self.visual_prompts)
    
         outputs_classes = []
         outputs_coords = []
@@ -667,6 +668,11 @@ def build(args):
     device = torch.device(args.device)
 
     backbone = build_backbone(args)
+    # for layer in backbone.modules():
+    #     layer.eval()
+    #     for param in layer.parameters():
+    #         param.requires_grad = False
+            
 
     transformer = build_deforamble_transformer(args)
 
@@ -675,6 +681,19 @@ def build(args):
     seen_classes = prev_intro_cls + curr_intro_cls
     invalid_cls_logits = list(range(seen_classes, num_classes-1)) #unknown class indx will not be included in the invalid class range
     print("Invalid class rangw: " + str(invalid_cls_logits))
+    if args.visual_prompts:
+        embeddings = torch.load(args.visual_prompts,map_location='cpu')
+        category_embeddings = [] 
+        for cls_idx in range(seen_classes):
+            category_embeddings.append(embeddings[cls_idx])
+        category_embeddings = torch.stack(category_embeddings,dim=0)
+        if args.test:
+            category_embeddings = category_embeddings.unsqueeze(0).expand(1,-1,-1).to(device)
+        else:
+            category_embeddings = category_embeddings.unsqueeze(0).expand(args.batch_size,-1,-1).to(device)
+
+    else:
+        category_embeddings = ""
 
     model = DeformableDETR(
         backbone,
@@ -688,6 +707,7 @@ def build(args):
         unmatched_boxes=args.unmatched_boxes,
         novelty_cls=args.NC_branch,
         featdim=args.featdim,
+        visual_prompts=category_embeddings
     )
     if args.masks:
         model = DETRsegm(model, freeze_detr=(args.frozen_weights is not None))
