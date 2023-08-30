@@ -18,16 +18,16 @@ class Fusion(nn.Module):
     def single_level_forward(self,src,memory):
 
         tgt = src.clone()
-        src = F.normalize(src,p=2,dim=-1)
+        # src_norm = F.normalize(src,p=2,dim=-1)
         # memory has been normalized
-        memory = self.prompt_proj(memory.to(src.dtype))
+        reduced_memory = self.prompt_proj(memory.to(src.dtype))
 
 
         emb_dim = torch.as_tensor(src.shape[-1],device=src.device,dtype=src.dtype)
-        attn_qk = torch.matmul(src,memory.transpose(1,2)) 
-        attn_qk = torch.div(attn_qk,torch.sqrt(emb_dim))
+        attn_qk = torch.matmul(src,reduced_memory.transpose(1,2)) 
+        # attn_qk = torch.div(attn_qk,torch.sqrt(emb_dim))
         attn_qk = F.softmax(attn_qk,dim=-1)
-        attn_val = torch.matmul(attn_qk,memory)
+        attn_val = torch.matmul(attn_qk,reduced_memory)
         return tgt+attn_val
     def forward(self,features,prompt):
 

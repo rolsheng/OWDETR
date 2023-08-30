@@ -528,7 +528,7 @@ class SetCriterion(nn.Module):
 
         # In case of auxiliary losses, we repeat this process with the output of each intermediate layer.
         if 'aux_outputs' in outputs:
-            for i, aux_outputs in enumerate(outputs['aux_outputs']):
+            for ii, aux_outputs in enumerate(outputs['aux_outputs']):
                 indices = self.matcher(aux_outputs, targets)
 
                 owod_targets = deepcopy(targets)
@@ -587,7 +587,7 @@ class SetCriterion(nn.Module):
                         # Logging is enabled only for the last layer
                         kwargs['log'] = False
                     l_dict = self.get_loss(loss, aux_outputs, targets, indices, num_boxes, epoch, owod_targets, owod_indices, **kwargs)
-                    l_dict = {k + f'_{i}': v for k, v in l_dict.items()}
+                    l_dict = {k + f'_{ii}': v for k, v in l_dict.items()}
                     losses.update(l_dict)
 
         if 'enc_outputs' in outputs:

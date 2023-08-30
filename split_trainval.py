@@ -23,7 +23,7 @@ with open("data/OWDETR/VOC2007/ImageSets/Main/train.txt",'w') as txt:
     for file_name in sorted(train_txt):
         txt.write(file_name)
         txt.write("\n")
-with open("data/OWDETR/VOC2007/ImageSets/Main/test.txt",'w') as txt:
+with open("data/OWDETR/VOC2007/ImageSets/Main/val.txt",'w') as txt:
     for file_name in sorted(test_txt):
         txt.write(file_name)
         txt.write("\n")

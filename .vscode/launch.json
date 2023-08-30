@@ -22,7 +22,7 @@
                 "--CUR_INTRODUCED_CLS",
                 "8",
                 "--NC_branch",
-                "--visual_prompts","output_prototype/prototype.pth",
+                "--visual_prompts","output_prototype/L2norm_prototype.pth",
                 "--dim_prompt", "512",
             ]
         },
