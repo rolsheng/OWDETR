@@ -144,3 +144,12 @@ dmypy.json
 
 /output_prototype/
 /clip/
+/glip_predict/
+/viz_sam/
+/viz_glip/
+/visualize/
+/glip_predict/
+/sam_predict/
+/segment_predict/
+/exps_baseline/
+
