@@ -1,5 +1,6 @@
 # partly taken from https://github.com/pytorch/vision/blob/master/torchvision/datasets/voc.py
 import functools
+from typing import Any, Callable, Optional
 import torch
 
 import os
@@ -26,6 +27,9 @@ from torchvision.datasets.utils import download_url, check_integrity, verify_str
 #     "pottedplant",  "sofa", "tvmonitor"
 # ]
 #0+4
+Base_CLASS_NAME = [
+    "pedestrian", "cyclist", "car", "truck", "tram", "tricycle", "bus"
+]
 VOC_CLASS_NAMES = [
     'pedestrian','cyclist','dog','misc'
 ]
@@ -267,3 +271,39 @@ def download_extract(url, root, filename, md5):
     download_url(url, root, filename, md5)
     with tarfile.open(os.path.join(root, filename), "r") as tar:
         tar.extractall(path=root)
+    
+class CustomImageDataset(VisionDataset):
+    """
+    Args:
+
+    """
+    def __init__(self, 
+                 root, 
+                 transforms=None,
+                 transform = None,
+                 target_transform = None) :
+        super().__init__(root, transforms, transform, target_transform)
+        self.images = []
+        self.CLASS_NAMES = VOC_COCO_CLASS_NAMES
+        self.root = root
+        self.transforms = transforms
+        self.images = [os.path.join(root,file_name) for file_name in os.listdir(self.root)]
+    
+    def __len__(self) -> int:
+        return len(self.images)
+    
+    def __getitem__(self, index):
+        img = Image.open(self.images[index])
+        w,h = img.size
+        target={
+            "img_path":self.images[index],
+            "orig_size":(int(h),int(w)),
+        }
+
+        if self.transforms[-1] is not None:
+            img,target = self.transforms[-1](img,target)
+        return img,target
+        
+        
+
+        

@@ -130,7 +130,7 @@ dmypy.json
 #ckpt
 /ckpt/
 #exps
-/exps/
+/exps*/
 #data
 /data/
 /CODA/
@@ -144,3 +144,7 @@ dmypy.json
 
 /output_prototype/
 /clip/
+/output_custom_images/
+/visualize/
+/viz*/
+/*predict

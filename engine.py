@@ -14,7 +14,10 @@ import math
 import os
 import sys
 from typing import Iterable
- 
+from tqdm import tqdm
+from PIL import Image,ImageDraw,ImageFont
+import cv2
+import json
 import torch
 import util.misc as utils
 from datasets.coco_eval import CocoEvaluator
@@ -25,7 +28,7 @@ from util.box_ops import box_xyxy_to_cxcywh, box_cxcywh_to_xyxy
 from util.plot_utils import plot_prediction
 import matplotlib.pyplot as plt
 from copy import deepcopy
- 
+from datasets.torchvision_datasets.open_world import Base_CLASS_NAME,VOC_COCO_CLASS_NAMES
 def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
                     device: torch.device, epoch: int, nc_epoch: int, max_norm: float = 0):
@@ -156,45 +159,78 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
         stats['PQ_th'] = panoptic_res["Things"]
         stats['PQ_st'] = panoptic_res["Stuff"]
     return stats, coco_evaluator
- 
+def submmit_format(results,image_info = None,viz = False):
+
+    def box_xyxy_to_xywh(boxes):
+        xmin,ymin,xmax,ymax = boxes
+        b = [xmin,ymin,xmax-xmin,ymax-ymin]
+        return b
+    image_id = os.path.basename(image_info['targets'][0]['img_path']).split('.jpg')[0]
+    targets = image_info['targets'][0]
+    output_dir = image_info['output_dir']
+    assert isinstance(results,list)
+    results = results[0]
+    if viz:
+        image = cv2.imread(targets['img_path'])
+        # image = cv2.cvtColor(image,cv2.COLOR_BGR2RGB)
+    results_format = []
+    h,w = targets['orig_size']
+    results['boxes'][:,0::2].clamp_(min=0,max=w)
+    results['boxes'][:,1::2].clamp_(min=0,max=h)
+    
+    labels = results['labels'].tolist()
+    scores = results['scores'].tolist()
+    boxes = results['boxes'].tolist()
+    assert len(labels)==len(scores) and len(scores)== len(boxes)
+    for label,score,box in zip(labels,scores,boxes):
+        class_name = VOC_COCO_CLASS_NAMES[label]
+        if viz:
+            cv2.rectangle(image,(int(box[0]),int(box[1])),(int(box[2]),int(box[3])),(0,0,255),2)
+            # cv2.rectangle(image,(int(box[0]),int(box[1])),(min(int(box[0]+100),w),min(int(box[1]+50),h)),(255,255,255),thickness=-1)
+            cv2.putText(image,
+                        "{}:{:.2f}".format(class_name if class_name in Base_CLASS_NAME else "unknown",score),
+                        (int(box[0]),int(box[1])),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.5,
+                        (0,255,0),
+                        2)
+        result = {
+            "image_id":int(image_id),
+            "category_id":Base_CLASS_NAME.index(class_name)+1 if class_name in Base_CLASS_NAME else 8,
+            "bbox":box_xyxy_to_xywh(box),
+            "score":score
+        }
+        results_format.append(result)
+    if viz:
+        cv2.imwrite(os.path.join(output_dir,targets['img_path'].split('/')[-1]),image)
+    return results_format
+
+
 @torch.no_grad()
-def viz(model, criterion, postprocessors, data_loader, base_ds, device, output_dir):
+def inference(model, postprocessors, data_loader, device, output_dir,viz = False):
     import numpy as np
     os.makedirs(output_dir, exist_ok=True)
     model.eval()
-    criterion.eval()
- 
-    metric_logger = utils.MetricLogger(delimiter="  ")
-    metric_logger.add_meter('class_error', utils.SmoothedValue(window_size=1, fmt='{value:.2f}'))
- 
-    for samples, targets in data_loader:
+    json_results = []
+    for batch_indx, batch_input in tqdm(enumerate(data_loader),total=len(data_loader)):
+        samples,targets = batch_input
         samples = samples.to(device)
-        targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
-        top_k = len(targets[0]['boxes'])
- 
+        # targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
         outputs = model(samples)
+        orig_target_sizes = torch.stack([torch.tensor(t['orig_size'],device=device) for t in targets],dim=0)
+        results = postprocessors['bbox'](outputs,orig_target_sizes)
+        # assert data_loader.batch_size==1
+        json_results.extend(
+            submmit_format(
+                        results,
+                        image_info={"targets":targets,"output_dir":output_dir},
+                        viz = viz
+                    )
+        )
+    with open(os.path.join(output_dir,'inference.json'),'w') as fp:
+        json.dump(json_results,fp)
+        print('done!')
+        
+  
+       
 
-        indices = outputs['pred_logits'][0].softmax(-1)[..., 1].sort(descending=True)[1][:top_k]
-        predictied_boxes = torch.stack([outputs['pred_boxes'][0][i] for i in indices]).unsqueeze(0)
-        logits = torch.stack([outputs['pred_logits'][0][i] for i in indices]).unsqueeze(0)
-        fig, ax = plt.subplots(1, 3, figsize=(10,3), dpi=200)
- 
-        img = samples.tensors[0].cpu().permute(1,2,0).numpy()
-        img = img * np.array([0.229, 0.224, 0.225]) + np.array([0.485, 0.456, 0.406])
-        img = (img * 255)
-        img = img.astype('uint8')
-        h, w = img.shape[:-1]
- 
-        # Pred results
-        plot_prediction(samples.tensors[0:1], predictied_boxes, logits, ax[1], plot_prob=False)
-        ax[1].set_title('Prediction (Ours)')
- 
-        # GT Results
-        plot_prediction(samples.tensors[0:1], targets[0]['boxes'].unsqueeze(0), torch.zeros(1, targets[0]['boxes'].shape[0], 4).to(logits), ax[2], plot_prob=False)
-        ax[2].set_title('GT')
- 
-        for i in range(3):
-            ax[i].set_aspect('equal')
-            ax[i].set_axis_off()
- 
-        plt.savefig(os.path.join(output_dir, f'img_{int(targets[0]["image_id"][0])}.jpg'))

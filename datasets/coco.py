@@ -175,7 +175,7 @@ def make_coco_transforms(image_set):
     if 'test' in image_set:
         t.append(['test'])
         t.append(T.Compose([
-            T.RandomResize([800], max_size=1333),
+            T.RandomResize([720], max_size=1280),
             normalize,
         ]))
         return t
@@ -187,8 +187,8 @@ def make_region_coda_transforms():
         T.Normalize([0.48145466, 0.4578275, 0.40821073],[0.26862954, 0.26130258, 0.27577711])
     ])
     return T.Compose([
-        T.RandomResizeCrop(size=(224,224),ratio = (0.4,1.0)),
-        T.RandomHorizontalFlip(),
+        T.Resize((224,224)),
+        T.CenterCrop((224,224)),
         normalize
     ])
 ## original function

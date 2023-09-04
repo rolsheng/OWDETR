@@ -22,8 +22,8 @@ import util.misc as utils
 import datasets.samplers as samplers
 from datasets import build_dataset, get_coco_api_from_dataset
 from datasets.coco import make_coco_transforms
-from datasets.torchvision_datasets.open_world import OWDetection
-from engine import evaluate, train_one_epoch, viz
+from datasets.torchvision_datasets.open_world import OWDetection,CustomImageDataset
+from engine import evaluate, train_one_epoch, inference
 from models import build_model
 
 
@@ -42,6 +42,14 @@ def get_args_parser():
     parser.add_argument('--clip_max_norm', default=0.1, type=float,
                         help='gradient clipping max norm')
     parser.add_argument('--sgd', action='store_true')
+    # visual prompts
+    parser.add_argument('--visual_prompts',type=str,default="",help="the path of visual prompts")
+    parser.add_argument('--dim_prompt',type=int,default=-1,help='number of fusion layer')
+    #inference custom images
+    parser.add_argument('--test',default=False,action='store_true')
+    parser.add_argument('--inference_ckpt',type=str,default='',help='checkpoint for inference custom images')
+    parser.add_argument('--input',type=str,default='',help='The path to input images')
+    parser.add_argument('--viz',type=str,default=False,help='whether to viz prediction on custom images')
     # Variants of Deformable DETR
     parser.add_argument('--with_box_refine', default=False, action='store_true')
     parser.add_argument('--two_stage', default=False, action='store_true')
@@ -106,7 +114,6 @@ def get_args_parser():
     parser.add_argument('--start_epoch', default=0, type=int, metavar='N',
                         help='start epoch')
     parser.add_argument('--eval', action='store_true')
-    parser.add_argument('--viz', action='store_true')
     parser.add_argument('--eval_every', default=1, type=int)
     parser.add_argument('--num_workers', default=2, type=int)
     parser.add_argument('--cache_mode', default=False, action='store_true', help='whether to cache images on memory')
@@ -154,8 +161,35 @@ def main(args):
     print(model_without_ddp)
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print('number of params:', n_parameters)
-
-    dataset_train, dataset_val = get_datasets(args)
+    if args.test:
+        assert args.input and args.inference_ckpt
+        dataset_test = get_custom_dataset(args)
+        sampler_test = torch.utils.data.SequentialSampler(dataset_test)
+        batch_sampler_test = torch.utils.data.BatchSampler(sampler=sampler_test,
+                                                           batch_size = 1,
+                                                           drop_last = False)
+        data_loader_test = DataLoader(dataset_test,
+                                      batch_sampler=batch_sampler_test,
+                                      collate_fn=utils.collate_fn,
+                                      num_workers=args.num_workers,
+                                      pin_memory=True)
+        checkpoint = torch.load(args.inference_ckpt, map_location='cpu')
+        missing_keys, unexpected_keys = model_without_ddp.load_state_dict(checkpoint['model'], strict=False)
+        if len(missing_keys) > 0:
+            print('Missing Keys: {}'.format(missing_keys))
+        if len(unexpected_keys) > 0:
+            print('Unexpected Keys: {}'.format(unexpected_keys))
+        inference(
+            model=model_without_ddp,
+            postprocessors=postprocessors,
+            data_loader=data_loader_test,
+            device=device,
+            output_dir=args.output_dir,
+            viz = args.viz
+        )
+        return
+    else:
+        dataset_train, dataset_val = get_datasets(args)
     
     if args.distributed:
         if args.cache_mode:
@@ -266,7 +300,7 @@ def main(args):
             lr_scheduler.step(lr_scheduler.last_epoch)
             args.start_epoch = checkpoint['epoch'] + 1
         # check the resumed model
-        if (not args.eval and not args.viz and args.dataset in ['coco', 'voc']):
+        if (not args.eval and args.dataset in ['coco', 'voc']):
             test_stats, coco_evaluator = evaluate(
                 model, criterion, postprocessors, data_loader_val, base_ds, device, args.output_dir, args
             )
@@ -276,9 +310,6 @@ def main(args):
                 utils.save_on_master(coco_evaluator.coco_eval["bbox"].eval, output_dir / "eval.pth")
             return
 
-    if args.viz:
-        viz(model, criterion, postprocessors, data_loader_val, base_ds, device, args.output_dir)
-        return
 
     print("Start training")
     start_time = time.time()
@@ -309,8 +340,8 @@ def main(args):
         else:
             test_stats = {}
 
-        log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
-                     **{f'test_{k}': v for k, v in test_stats.items()},
+        log_stats = {**{f'test_{k}': v for k, v in test_stats.items()},
+                    **{f'train_{k}': v for k, v in train_stats.items()},
                      'epoch': epoch,
                      'n_parameters': n_parameters}
 
@@ -351,7 +382,12 @@ def get_datasets(args):
     print(dataset_val)
 
     return dataset_train, dataset_val
-
+def get_custom_dataset(args):
+    print(args.input)
+    dataset = CustomImageDataset(root=args.input,
+                                 transforms=make_coco_transforms('test'))
+    print(dataset)
+    return dataset
 
 def set_dataset_path(args):
     args.owod_path = os.path.join(args.data_root, 'VOC2007')

@@ -14,7 +14,7 @@ categories = [
             'pedestrian','cyclist','dog','misc',
             'car','truck','tram','tricycle','bus','bicycle','moped','motorcycle','stroller','cart','construction_vehicle',
             'barrier','bollard','sentry_box','traffic_cone','traffic_island','traffic_light','traffic_sign',
-            'debris', 'suitcace', 'dustbin', 'concrete_block', 'machinery', 'garbage','plastic_bag','stone'
+            # 'debris', 'suitcace', 'dustbin', 'concrete_block', 'machinery', 'garbage','plastic_bag','stone'
             ]
 
 if is_finetuning:
@@ -23,20 +23,11 @@ if is_finetuning:
     for train_split in train_txts:
         file_path = os.path.join("data/OWDETR/VOC2007/ImageSets/Main",train_split)
         with open(file_path,'r') as txt:
-            # txt_list.extend(txt.readlines())
-            for img in txt.readlines():
-                anno = ET.parse(os.path.join("data/OWDETR/VOC2007/Annotations",img.strip()+'.xml')).getroot()
-                for object in anno.iter('object'):
-                    name = object.find('name').text.lower()
-                    if name in categories:
-                        cat_2_img[name].append(img.strip())
-    num_exemplar = 10e10
-    for cat_name,img_list in cat_2_img.items():
-        # img_list = list(set(img_list))
-        if len(img_list)<num_exemplar:
-            num_exemplar = len(img_list)
-    for cat_name,img_list in cat_2_img.items():
-        txt_list.extend(random.sample(img_list,k=num_exemplar))
+            img_list = [img.strip() for img in txt.readlines()]
+            random.shuffle(img_list)
+            img_list = random.sample(img_list,k=int(0.5*len(img_list)))
+            txt_list.extend(img_list)
+
     txt_list = list(set(txt_list))
     with open('data/OWDETR/VOC2007/ImageSets/Main/t4_ft.txt','w') as txt:
         for img in txt_list:

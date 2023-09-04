@@ -8,7 +8,7 @@ def imagesets(coco_annotation_file, target_folder):
     # os.makedirs(os.path.join(target_folder, 'Main'), exist_ok=True)
     # import pdb;pdb.set_trace()
     coco_instance = COCO(coco_annotation_file)
-    with open("data/OWDETR/VOC2007/ImageSets/Main/train.txt", "a") as myfile:
+    with open("data/OWDETR/VOC2007/ImageSets/Main/trainval.txt", "a") as myfile:
         for index, image_id in enumerate(coco_instance.imgToAnns):
             image_details = coco_instance.imgs[image_id]
             myfile.write(image_details['file_name'].split('.')[0])
@@ -47,7 +47,7 @@ def coco_to_voc_detection(coco_annotation_file, target_folder):
 
 
 if __name__ == '__main__':
-    coco_annotation_file = 'SODA10M/labeled/annotations/instance_train_md.json'
+    coco_annotation_file = 'SODA10M/labeled/annotations/instance_val_md.json'
     target_folder = 'data/OWDETR/VOC2007'
     coco_to_voc_detection(coco_annotation_file, target_folder)
     imagesets(coco_annotation_file, target_folder)

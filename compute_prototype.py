@@ -47,7 +47,7 @@ def evaluator(model,dataloader):
     torch.save(gt_labels,'output_prototype/gt_labels.pth')
     
     for label_id in range(num_cls):
-        class_prototype[VOC_COCO_CLASS_NAMES[label_id]] = torch.mean(region_features[gt_labels==label_id],dim=0)
+        class_prototype[label_id] = torch.mean(region_features[gt_labels==label_id],dim=0)
     torch.save(class_prototype,"output_prototype/prototype.pth")
     
     return class_prototype
@@ -58,7 +58,7 @@ def main():
     batch_size = 32
     num_workers = 4
     #model config
-    clip_model_name = 'RN50'
+    clip_model_name = 'ViT-B/32'
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     clip_model = load_clip_model(clip_model_name,device=device)
     num_cls  = len(VOC_COCO_CLASS_NAMES)-1
@@ -70,7 +70,7 @@ def main():
     data_transforms = make_region_coda_transforms()
     dataset = build_datasets(root=data_root,transforms=data_transforms)
     #dataloader config
-    sampler_train = torch.utils.data.RandomSampler(dataset)
+    sampler_train = torch.utils.data.SequentialSampler(dataset)
     batch_sampler = torch.utils.data.BatchSampler(sampler_train, batch_size, drop_last=False)
     dataloader = DataLoader(dataset, batch_sampler=batch_sampler,
                                    collate_fn=utils.collate_fn, num_workers=num_workers,

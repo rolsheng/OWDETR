@@ -248,7 +248,12 @@ class RandomResize(object):
     def __call__(self, img, target=None):
         size = random.choice(self.sizes)
         return resize(img, target, size, self.max_size)
-
+class Resize(object):
+    def __init__(self,size,interpolation=F.InterpolationMode.BICUBIC):
+        self.interpolation = interpolation
+        self.size = size
+    def __call__(self, img,target):
+        return F.resize(img, self.size, self.interpolation),target
 
 class RandomPad(object):
     def __init__(self, max_pad):
