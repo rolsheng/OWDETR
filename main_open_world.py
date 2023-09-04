@@ -44,7 +44,7 @@ def get_args_parser():
     parser.add_argument('--sgd', action='store_true')
     # visual prompts
     parser.add_argument('--visual_prompts',type=str,default="",help="the path of visual prompts")
-    parser.add_argument('--dim_prompt',type=int,default=512,help='number of fusion layer')
+    parser.add_argument('--dim_prompt',type=int,default=-1,help='number of fusion layer')
     #inference custom images
     parser.add_argument('--test',default=False,action='store_true')
     parser.add_argument('--inference_ckpt',type=str,default='',help='checkpoint for inference custom images')
@@ -340,8 +340,8 @@ def main(args):
         else:
             test_stats = {}
 
-        log_stats = {**{f'train_{k}': v for k, v in train_stats.items()},
-                     **{f'test_{k}': v for k, v in test_stats.items()},
+        log_stats = {**{f'test_{k}': v for k, v in test_stats.items()},
+                    **{f'train_{k}': v for k, v in train_stats.items()},
                      'epoch': epoch,
                      'n_parameters': n_parameters}
 

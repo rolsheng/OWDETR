@@ -8,8 +8,7 @@ class Fusion(nn.Module):
     def __init__(self,
                  num_feature_levels,
                  in_dim=512,
-                 out_dim=256,
-                 dropout=0.1
+                 out_dim=256
                  ):
         super().__init__()
         self.num_feature_levels = num_feature_levels
@@ -21,8 +20,6 @@ class Fusion(nn.Module):
         # src_norm = F.normalize(src,p=2,dim=-1)
         # memory has been normalized
         reduced_memory = self.prompt_proj(memory.to(src.dtype))
-
-
         emb_dim = torch.as_tensor(src.shape[-1],device=src.device,dtype=src.dtype)
         attn_qk = torch.matmul(src,reduced_memory.transpose(1,2)) 
         # attn_qk = torch.div(attn_qk,torch.sqrt(emb_dim))

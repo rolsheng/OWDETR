@@ -27,7 +27,7 @@ class DeformableTransformer(nn.Module):
                  activation="relu", return_intermediate_dec=False,
                  num_feature_levels=4, dec_n_points=4,  enc_n_points=4,
                  two_stage=False, two_stage_num_proposals=300,
-                 dim_prompt = 512):
+                 dim_prompt = -1):
         super().__init__()
 
         self.d_model = d_model
@@ -35,10 +35,13 @@ class DeformableTransformer(nn.Module):
         self.two_stage = two_stage
         self.two_stage_num_proposals = two_stage_num_proposals
         # build Fusion Block
-        self.fusion = Fusion(num_feature_levels,
-                             in_dim=dim_prompt,
-                             out_dim=d_model
-                             )
+        self.dim_prompt = dim_prompt
+        self.num_feature_levels = num_feature_levels
+        if dim_prompt >0:
+            self.fusion = Fusion(num_feature_levels,
+                                in_dim=dim_prompt,
+                                out_dim=d_model
+                                )
         encoder_layer = DeformableTransformerEncoderLayer(d_model, dim_feedforward,
                                                           dropout, activation,
                                                           num_feature_levels, nhead, enc_n_points)
@@ -150,7 +153,7 @@ class DeformableTransformer(nn.Module):
             pos_embed = pos_embed.flatten(2).transpose(1, 2)
             lvl_pos_embed = pos_embed + self.level_embed[lvl].view(1, 1, -1)
             lvl_pos_embed_flatten.append(lvl_pos_embed)
-            if isinstance(visual_prompts,torch.Tensor):
+            if isinstance(visual_prompts,torch.Tensor) and self.dim_prompt>0 and lvl==self.num_feature_levels-1:
                 src = self.fusion(src,visual_prompts)    
             src_flatten.append(src)
             mask_flatten.append(mask)

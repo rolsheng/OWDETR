@@ -458,7 +458,7 @@ class SetCriterion(nn.Module):
                       The expected keys in each dict depends on the losses applied, see each loss' doc
         """
         if self.nc_epoch > 0:
-            loss_epoch = 9
+            loss_epoch = self.nc_epoch
         else:
             loss_epoch = 0
 
@@ -668,11 +668,6 @@ def build(args):
     device = torch.device(args.device)
 
     backbone = build_backbone(args)
-    # for layer in backbone.modules():
-    #     layer.eval()
-    #     for param in layer.parameters():
-    #         param.requires_grad = False
-            
 
     transformer = build_deforamble_transformer(args)
 
@@ -683,14 +678,25 @@ def build(args):
     print("Invalid class rangw: " + str(invalid_cls_logits))
     if args.visual_prompts:
         embeddings = torch.load(args.visual_prompts,map_location='cpu')
-        category_embeddings = [] 
-        for cls_idx in range(seen_classes):
-            category_embeddings.append(embeddings[cls_idx])
+        category_embeddings = []
+        if 'train' in args.train_set:
+            for cls_idx in range(prev_intro_cls,curr_intro_cls):
+                category_embeddings.append(embeddings[cls_idx])
+        else:
+            for cls_idx in range(seen_classes):
+                category_embeddings.append(embeddings[cls_idx])
+        
         category_embeddings = torch.stack(category_embeddings,dim=0)
+
+
         if args.test:
             category_embeddings = category_embeddings.unsqueeze(0).expand(1,-1,-1).to(device)
         else:
             category_embeddings = category_embeddings.unsqueeze(0).expand(args.batch_size,-1,-1).to(device)
+        
+        category_embeddings = category_embeddings.to(torch.float32)
+
+
 
     else:
         category_embeddings = ""

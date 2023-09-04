@@ -1,4 +1,4 @@
 import torch
-
-prototype = torch.load('output_prototype/prototype.pth',map_location='cpu')
-print(prototype[0])
+import torch.nn.functional as F
+a = '123'
+print(a[-1])

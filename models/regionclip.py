@@ -4,7 +4,7 @@ from collections import defaultdict
 from datasets.torchvision_datasets.open_world import VOC_COCO_CLASS_NAMES
 import torch.nn.functional as F
 class RegionClip(nn.Module):
-    def __init__(self,num_cls,clip_model,device,scale=1.0,norm=False):
+    def __init__(self,num_cls,clip_model,device,scale=1.0,norm=True):
         super(RegionClip,self).__init__()
         self.visual_encoder = clip_model.visual
         self._forward_saved_features = {
