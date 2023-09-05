@@ -680,7 +680,7 @@ def build(args):
         embeddings = torch.load(args.visual_prompts,map_location='cpu')
         category_embeddings = []
         if 'train' in args.train_set:
-            for cls_idx in range(prev_intro_cls,curr_intro_cls):
+            for cls_idx in range(prev_intro_cls,seen_classes):
                 category_embeddings.append(embeddings[cls_idx])
         else:
             for cls_idx in range(seen_classes):

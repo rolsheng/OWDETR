@@ -21,7 +21,7 @@ def box_iou(boxs,gts):
     inter = wh[:,:,0]*wh[:,:,1] # N M
     union = area_boxs[:,None]+area_gts-inter
     iou = inter/union
-    return iou
+    return iou,inter
 def box_nms(instances,scores,threhold=0.1):
     keep =[]
     order = np.argsort(scores)[::-1]
@@ -84,7 +84,7 @@ def load_glip_predict(path):
     else:
         return None,None
 
-def load_sam_predict(path,seg_path,overlap = 0.2):
+def load_sam_predict(path,seg_path,overlap = 0.3):
     obj_file = json.load(open(path,'r'))
     sam_instances = []
     sam_scores = []
@@ -121,11 +121,14 @@ def merge(glip_instances,sam_instances,glip_scores,sam_scores):
     else:
         return np.concatenate([glip_instances,sam_instances],axis=0),np.concatenate([glip_scores,sam_scores],axis=0)
 
-def proprecess(instances,gt_instances,threshold = 0):
-    ious = box_iou(instances,gt_instances)
+def proprecess(instances,gt_instances,threshold = 0.5):
+    ious,inters = box_iou(instances,gt_instances)
     keep = []
-    for inds,iou in enumerate(ious):
-        if (iou<=threshold).all():
+    area_instances = box_area(instances)
+    for inds in range(len(ious)):
+        iou = ious[inds]
+        inter = inters[inds]
+        if (iou<=threshold).all() and not (area_instances[inds]==inter).any():
             keep.append(inds)
     return keep
 
@@ -162,15 +165,16 @@ def main(args):
         gt_instances = load_xml(gt_path) if osp.exists(gt_path) else None
       
         #load glip prediction
-        glip_path = osp.join(args.glip_predict,file_prefix+'.json')
-        glip_instances,glip_scores = load_glip_predict(glip_path) if osp.exists(glip_path) else None
+        # glip_path = osp.join(args.glip_predict,file_prefix+'.json')
+        # glip_instances,glip_scores = load_glip_predict(glip_path) if osp.exists(glip_path) else None
 
         #load sam prediction
         sam_path = osp.join(args.sam_predict,file_prefix+'.json')
         seg_path = osp.join(args.segment,file_prefix+'.npy')
         sam_instances ,sam_scores= load_sam_predict(sam_path,seg_path) if osp.exists(sam_path) else None
         #merge glip and sam prediction together
-        predict_instances,predict_scores = merge(glip_instances,sam_instances,glip_scores,sam_scores)
+        # predict_instances,predict_scores = merge(glip_instances,sam_instances,glip_scores,sam_scores)
+        predict_instances,predict_scores= sam_instances,sam_scores
         # filter proposals with big overlaps
         if predict_instances is None:
             continue
@@ -183,8 +187,8 @@ def main(args):
             top_instances ,top_scores= predict_instances[keep,:], predict_scores[keep]
         #save results to json
         result_json = save_instances(top_instances,top_scores)
-        with open(osp.join(args.save,file_prefix+'.json'),'w') as fp:
-            json.dump(result_json,fp)
+        # with open(osp.join(args.save,file_prefix+'.json'),'w') as fp:
+        #     json.dump(result_json,fp)
         #visual
         if args.viz:
             viz(args,result_json,osp.join(args.image,image))
