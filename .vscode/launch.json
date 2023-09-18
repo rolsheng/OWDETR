@@ -1,0 +1,71 @@
+{
+    // 使用 IntelliSense 了解相关属性。 
+    // 悬停以查看现有属性的描述。
+    // 欲了解更多信息，请访问: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "inferece_custom_images",
+            "type": "python",
+            "request": "launch",
+            "program": "main_open_world.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "--test",
+                "--input","CODA/test/images",
+                "--inference_ckpt","exps/OWDETR_t4_ft/checkpoint0179.pth",
+                "--viz","True",
+                "--output_dir","output_custom_images",
+                "--PREV_INTRODUCED_CLS",
+                "22",
+                "--CUR_INTRODUCED_CLS",
+                "8",
+                "--NC_branch",
+                // "--visual_prompts","output_prototype/L2norm_prototype.pth",
+                // "--dim_prompt", "512",
+            ]
+        },
+        {
+            "name": "train",
+            "type": "python",
+            "request": "launch",
+            "program": "main_open_world.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "--output_dir",
+                "exps/OWDETR_t1",
+                "--eval_every",
+                "1",
+                "--PREV_INTRODUCED_CLS",
+                "0",
+                "--CUR_INTRODUCED_CLS",
+                "4",
+                "--train_set",
+                "t1_train",
+                "--test_set",
+                "val",
+                "--unmatched_boxes",
+                "--epochs",
+                "30",
+                "--top_unk",
+                "5",
+                "--featdim",
+                "1024",
+                "--NC_branch",
+                "--nc_loss_coef",
+                "0.1",
+                "--nc_epoch",
+                "-1",
+                "--pretrain",
+                "ckpt/pretrained_weight_owdetr.pth",
+                "--enable_adaptive_pseudo", 
+                "--pseudo_store_path", "exps/loss_memory",
+                "--adaptive_update_Iter","300",
+                "--memory_length","100"
+              
+            ]
+        }
+    ]
+}
