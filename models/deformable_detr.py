@@ -578,7 +578,6 @@ class SetCriterion(nn.Module):
                         unmatched_boxes = unmatched_boxes * torch.tensor([img_w, img_h, img_w, img_h], dtype=torch.float32).to(owod_device)
                         
                         scores_bb = torch.zeros(queries.shape[0]).to(unmatched_boxes)
-                        # scores_bb[indices[i]] = 0
                         bb = unmatched_boxes
                         if len(unk_boxes)==0:
                             scores_bb = match_scores
