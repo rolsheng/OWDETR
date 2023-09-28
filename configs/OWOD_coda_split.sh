@@ -51,7 +51,7 @@ PY_ARGS=${@:1}
 python -u main_open_world.py \
     --output_dir ${EXP_DIR} --eval_every 1 \
     --PREV_INTRODUCED_CLS 15 --CUR_INTRODUCED_CLS 7  --train_set 't3_ft' --test_set 'val' \
-    --unmatched_boxes --epochs 130 --top_unk 5 --featdim 1024 --NC_branch --nc_loss_coef 0.1 --nc_epoch 9 \
+    --unmatched_boxes --epochs 120 --top_unk 5 --featdim 1024 --NC_branch --nc_loss_coef 0.1 --nc_epoch 9 \
     --pretrain 'exps/OWDETR_t3/checkpoint0084.pth' \
     --enable_adaptive_pseudo --pseudo_store_path 'exps/loss_memory'  --adaptive_update_Iter 300 --memory_length 100 \
     ${PY_ARGS}
@@ -63,7 +63,7 @@ python -u main_open_world.py \
     --output_dir ${EXP_DIR} --eval_every 1 \
     --PREV_INTRODUCED_CLS 22 --CUR_INTRODUCED_CLS 8 --train_set 't4_train' --test_set 'val' \
     --unmatched_boxes --epochs 135 --lr 2e-5 --top_unk 5 --featdim 1024 --NC_branch --nc_loss_coef 0.1 --nc_epoch 9 \
-    --pretrain 'exps/OWDETR_t3_ft/checkpoint0129.pth' \
+    --pretrain 'exps/OWDETR_t3_ft/checkpoint0119.pth' \
     --enable_adaptive_pseudo --pseudo_store_path 'exps/loss_memory'  --adaptive_update_Iter 300 --memory_length 100 \
     ${PY_ARGS}
 
@@ -73,7 +73,7 @@ PY_ARGS=${@:1}
 python -u main_open_world.py \
     --output_dir ${EXP_DIR} --eval_every 1 \
     --PREV_INTRODUCED_CLS 22 --CUR_INTRODUCED_CLS 8  --train_set 't4_ft' --test_set 'val' \
-    --unmatched_boxes --epochs 180 --top_unk 5 --featdim 1024 --NC_branch --nc_loss_coef 0.1 --nc_epoch 9 \
+    --unmatched_boxes --epochs 165 --top_unk 5 --featdim 1024 --NC_branch --nc_loss_coef 0.1 --nc_epoch 9 \
     --pretrain 'exps/OWDETR_t4/checkpoint0134.pth' \
     --enable_adaptive_pseudo --pseudo_store_path 'exps/loss_memory'  --adaptive_update_Iter 300 --memory_length 100 \
     ${PY_ARGS}

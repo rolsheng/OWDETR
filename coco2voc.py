@@ -69,7 +69,7 @@ def coco_to_voc_detection(coco_annotation_file, target_folder,pesudo_folder):
 
 if __name__ == '__main__':
     #CODA/val/annotations.json
-    coco_annotation_file = 'CODA/val/annotations.json'
+    coco_annotation_file = 'SODA10M/labeled/annotations/instance_val_md.json'
     target_folder = 'data/OWDETR/VOC2007'
     pesudo_folder = 'data/OWDETR/VOC2007/Pesudo_label'
     coco_to_voc_detection(coco_annotation_file, target_folder,pesudo_folder)

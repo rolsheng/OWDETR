@@ -499,7 +499,7 @@ class SetCriterion(nn.Module):
                 #compute matching score for a proposal with classification logits 
                 pred_logits = outputs_without_aux['pred_logits'][i].sigmoid()
                 match_scores = torch.sum(pred_logits,dim=1)
-
+                uncertain = -torch.sum(pred_logits*pred_logits.log2(),dim=1)
                 img = samples.tensors[i].cpu().permute(1,2,0).numpy()
                 h, w = img.shape[:-1]
                 img_w = torch.tensor(w, device=owod_device)
@@ -515,11 +515,15 @@ class SetCriterion(nn.Module):
                 scores_bb = torch.zeros(queries.shape[0]).to(unmatched_boxes)
                 bb = unmatched_boxes
                 
+                match_scores = torch.div(match_scores,torch.max(match_scores))
+                uncertain = torch.div(uncertain,torch.max(uncertain))
+
+                match_scores = match_scores*uncertain
                 if len(unk_boxes)==0:
-                    scores_bb = match_scores
+                    scores_bb = match_scores 
                 else:
-                    GIOU,_ = box_ops.generalized_box_iou(bb,unk_boxes).max(dim=1)
-                    scores_bb = GIOU**self.loss_memory.Ws * match_scores**self.loss_memory.Wf
+                    IOU,_ = box_ops.box_iou(bb,unk_boxes)[0].max(dim=1)
+                    scores_bb = IOU**self.loss_memory.Ws * match_scores**self.loss_memory.Wf 
                 scores_bb[indices[i][0]] = -10e10
                 _, topk_inds =  torch.topk(scores_bb, self.top_unk)
                 topk_inds = torch.as_tensor(topk_inds)    
@@ -564,7 +568,7 @@ class SetCriterion(nn.Module):
                         #compute matching score for a proposal with classification logits 
                         pred_logits = outputs_without_aux['pred_logits'][i]
                         match_scores = torch.sum(pred_logits,dim=1)
-
+                        uncertain = -torch.sum(pred_logits*pred_logits.log2(),dim=1)
                         img = samples.tensors[i].cpu().permute(1,2,0).numpy()
                         h, w = img.shape[:-1]
                         img_w = torch.tensor(w, device=owod_device)
@@ -579,11 +583,14 @@ class SetCriterion(nn.Module):
                         
                         scores_bb = torch.zeros(queries.shape[0]).to(unmatched_boxes)
                         bb = unmatched_boxes
+                        match_scores = torch.div(match_scores,torch.max(match_scores))
+                        uncertain = torch.div(uncertain,torch.max(uncertain))
+                        match_scores = match_scores*uncertain
                         if len(unk_boxes)==0:
-                            scores_bb = match_scores
+                            scores_bb = match_scores 
                         else:
-                            GIOU,_ = box_ops.generalized_box_iou(bb,unk_boxes).max(dim=1)
-                            scores_bb = GIOU**self.loss_memory.Ws * match_scores**self.loss_memory.Wf
+                            IOU,_ = box_ops.box_iou(bb,unk_boxes)[0].max(dim=1)
+                            scores_bb = IOU**self.loss_memory.Ws * match_scores**self.loss_memory.Wf 
                         scores_bb[indices[i][0]] = -10e10
                         topk_inds = torch.as_tensor(topk_inds)
 

@@ -8,6 +8,7 @@
 # ------------------------------------------------------------------------
 
 from .deformable_detr import build
+from .sampler import RepeatFactorTrainingSampler
 
 
 def build_model(args):

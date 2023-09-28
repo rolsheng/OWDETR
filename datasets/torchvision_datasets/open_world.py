@@ -145,6 +145,7 @@ class OWDetection(VisionDataset):
     def load_instances(self, img_id):
         tree = ET.parse(self.imgid2annotations[img_id])
         target = self.parse_voc_xml(tree.getroot())
+        _,image_h = int(target['annotation']['size']['width']),int(target['annotation']['size']['height'])
         image_id = target['annotation']['filename']
         instances = []
         for obj in target['annotation']['object']:
@@ -169,7 +170,10 @@ class OWDetection(VisionDataset):
                 unk_objects = [unk_objects]
             for unk_obj in unk_objects:
                 bbox = unk_obj["bndbox"]
+                #filter objects in the sky
                 bbox = [float(bbox[x]) for x in ["xmin", "ymin", "xmax", "ymax"]]
+                if bbox[3] <= float(image_h/2):
+                    continue
                 bbox[0] -= 1.0
                 bbox[1] -= 1.0
                 score = float(unk_obj['score'])
@@ -190,7 +194,7 @@ class OWDetection(VisionDataset):
         return file_names
 
     ### OWOD
-    def remove_prev_class_and_unk_instances(self, target,unk_target):
+    def remove_prev_class_and_unk_instances(self, target):
         # For training data. Removing earlier seen class objects.
         # However store gt objects in the following task as unknow objects and pesudo bboxs
         prev_intro_cls = self.args.PREV_INTRODUCED_CLS
@@ -198,18 +202,12 @@ class OWDetection(VisionDataset):
         valid_classes = range(prev_intro_cls, prev_intro_cls + curr_intro_cls)
         unk_classes = range(prev_intro_cls+curr_intro_cls,self.args.num_classes-1) # exclude unknow class
         entry = copy.copy(target)
-        unk_entry = copy.copy(unk_target)
         for annotation in copy.copy(entry):
             if annotation["category_id"] not in valid_classes:
-                entry.remove(annotation)
-            if annotation['category_id'] in unk_classes:
-                # store gt box in following task as unk_objects
-                annotation.pop('category_id')
-                annotation['score'] = float(1.0)
-                unk_entry.append(annotation)
-        return entry,unk_entry
+                entry.remove(annotation)     
+        return entry
 
-    def remove_unknown_instances(self, target,unk_target):
+    def remove_unknown_instances(self, target):
         # For finetune data. 
         # Storing gt box in the following task as  unknown objects...
         prev_intro_cls = self.args.PREV_INTRODUCED_CLS
@@ -217,15 +215,10 @@ class OWDetection(VisionDataset):
         valid_classes = range(0, prev_intro_cls+curr_intro_cls)
         unk_classes = range(prev_intro_cls+curr_intro_cls,self.args.num_classes-1)
         entry = copy.copy(target)
-        unk_entry = copy.copy(unk_target)
         for annotation in copy.copy(entry):
             if annotation["category_id"] not in valid_classes:
                 entry.remove(annotation)
-            if annotation['category_id'] in unk_classes:
-                annotation.pop('category_id')
-                annotation['score'] = float(1.0)
-                unk_entry.append(annotation)
-        return entry,unk_entry
+        return entry
 
     def label_known_class_and_unknown(self, target):
         # For test and validation data.
@@ -253,11 +246,11 @@ class OWDetection(VisionDataset):
         img = Image.open(self.images[index]).convert('RGB')
         target, instances, unk_instances= self.load_instances(self.imgids[index])
         if 'train' in image_set:
-            instances,unk_instances = self.remove_prev_class_and_unk_instances(instances,unk_instances)
+            instances = self.remove_prev_class_and_unk_instances(instances)
         elif 'val' in image_set:
             instances = self.label_known_class_and_unknown(instances)
         elif 'ft' in image_set:
-            instances,unk_instances = self.remove_unknown_instances(instances,unk_instances)
+            instances = self.remove_unknown_instances(instances)
 
         w, h = map(target['annotation']['size'].get, ['width', 'height'])
         if len(unk_instances)>0:

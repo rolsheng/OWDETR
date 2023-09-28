@@ -10,12 +10,20 @@
 """
 Modules to compute the matching cost and solve the corresponding LSAP.
 """
+from typing import Any,List
 import torch
 from scipy.optimize import linear_sum_assignment
 from torch import nn
 
 from util.box_ops import box_cxcywh_to_xyxy, generalized_box_iou
-
+def nonzero_tuple(x):
+    """
+    A 'as_tuple=True' version of torch.nonzero to support torchscript.
+    because of https://github.com/pytorch/pytorch/issues/38718
+    """
+    if x.dim() == 0:
+        return x.unsqueeze(0).nonzero().unbind(1)
+    return x.nonzero().unbind(1)
 
 class HungarianMatcher(nn.Module):
     """This class computes an assignment between the targets and the predictions of the network
@@ -95,8 +103,68 @@ class HungarianMatcher(nn.Module):
             indices = [linear_sum_assignment(c[i]) for i, c in enumerate(C.split(sizes, -1))]
             return [(torch.as_tensor(i, dtype=torch.int64), torch.as_tensor(j, dtype=torch.int64)) for i, j in indices]
 
-class CustomHungarianMatch(nn.Module):
-    pass
+class Matcher(object):
+    def __init__(self,
+                  thresholds: List[float], 
+                  labels: List[int],
+                  allow_low_quality_matches=False
+                 ):
+        # Add -inf and +inf to first and last position in thresholds
+        thresholds = thresholds[:]
+        assert thresholds[0] > 0
+        thresholds.insert(0, -float("inf"))
+        thresholds.append(float("inf"))
+        # Currently torchscript does not support all + generator
+        assert all([low <= high for (low, high) in zip(thresholds[:-1], thresholds[1:])])
+        assert all([l in [-1, 0, 1] for l in labels])
+        assert len(labels) == len(thresholds) - 1
+        self.thresholds = thresholds
+        self.labels = labels
+        self.allow_low_quality_matches = allow_low_quality_matches
+
+    
+    def __call__(self,match_quality_matrix):
+        assert match_quality_matrix.dim() == 2
+        assert torch.all(match_quality_matrix >= 0)
+
+        # match_quality_matrix is M (gt) x N (predicted)
+        # Max over gt elements (dim 0) to find best gt candidate for each prediction
+        matched_vals, matches = match_quality_matrix.max(dim=0)
+
+        match_labels = matches.new_full(matches.size(), 1, dtype=torch.int8)
+
+        for (l, low, high) in zip(self.labels, self.thresholds[:-1], self.thresholds[1:]):
+            low_high = (matched_vals >= low) & (matched_vals < high)
+            match_labels[low_high] = l
+
+        if self.allow_low_quality_matches:
+            self.set_low_quality_matches_(match_labels, match_quality_matrix)
+
+        return matches, match_labels
+    def set_low_quality_matches_(self, match_labels, match_quality_matrix):
+        """
+        Produce additional matches for predictions that have only low-quality matches.
+        Specifically, for each ground-truth G find the set of predictions that have
+        maximum overlap with it (including ties); for each prediction in that set, if
+        it is unmatched, then match it to the ground-truth G.
+
+        This function implements the RPN assignment case (i) in Sec. 3.1.2 of
+        :paper:`Faster R-CNN`.
+        """
+        # For each gt, find the prediction with which it has highest quality
+        highest_quality_foreach_gt, _ = match_quality_matrix.max(dim=1)
+        # Find the highest quality match available, even if it is low, including ties.
+        # Note that the matches qualities must be positive due to the use of
+        # `torch.nonzero`.
+        _, pred_inds_with_highest_quality = nonzero_tuple(
+            match_quality_matrix == highest_quality_foreach_gt[:, None]
+        )
+        # If an anchor was labeled positive only due to a low-quality match
+        # with gt_A, but it has larger overlap with gt_B, it's matched index will still be gt_B.
+        # This follows the implementation in Detectron, and is found to have no significant impact.
+        match_labels[pred_inds_with_highest_quality] = 1
+
+       
 def build_matcher(args):
     return HungarianMatcher(cost_class=args.set_cost_class,
                             cost_bbox=args.set_cost_bbox,

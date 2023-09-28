@@ -25,6 +25,7 @@ from datasets.coco import make_coco_transforms
 from datasets.torchvision_datasets.open_world import OWDetection,CustomImageDataset
 from engine import evaluate, train_one_epoch, inference
 from models import build_model
+from models.sampler import RepeatFactorTrainingSampler
 
 
 def get_args_parser():
@@ -42,6 +43,8 @@ def get_args_parser():
     parser.add_argument('--clip_max_norm', default=0.1, type=float,
                         help='gradient clipping max norm')
     parser.add_argument('--sgd', action='store_true')
+    #image resampling and object-level resampling
+    parser.add_argument('--image_resample',default=False,action='store_true')
     # visual prompts
     parser.add_argument('--visual_prompts',type=str,default="",help="the path of visual prompts")
     parser.add_argument('--dim_prompt',type=int,default=-1,help='number of fusion layer')
@@ -213,6 +216,22 @@ def main(args):
     data_loader_val = DataLoader(dataset_val, args.batch_size, sampler=sampler_val,
                                  drop_last=False, collate_fn=utils.collate_fn, num_workers=args.num_workers,
                                  pin_memory=True)
+    # if enabel image resample,than rewrite sampler with RepeatFactorTrainingSampler and dataloader
+    if args.image_resample:
+        print("Using repeat factor sampling-----")
+        repeat_factors =RepeatFactorTrainingSampler.repeat_factors_from_category_frequency(args,dataset_train,repeat_thresh=0.05)
+        sampler_train = RepeatFactorTrainingSampler(repeat_factors,seed=seed)
+        batch_sampler_train = torch.utils.data.BatchSampler(
+            sampler_train, 
+            args.batch_size, 
+            drop_last=True)
+        data_loader_train = DataLoader(
+            dataset_train,
+            num_workers= args.num_workers,
+            batch_sampler=batch_sampler_train,
+            collate_fn=utils.collate_fn,
+            pin_memory=True
+        )
 
     # lr_backbone_names = ["backbone.0", "backbone.neck", "input_proj", "transformer.encoder"]
     def match_name_keywords(n, name_keywords):
