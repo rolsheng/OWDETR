@@ -58,7 +58,7 @@ def main():
     batch_size = 32
     num_workers = 4
     #model config
-    clip_model_name = 'ViT-B/32'
+    clip_model_name = 'RN50'
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     clip_model = load_clip_model(clip_model_name,device=device)
     num_cls  = len(VOC_COCO_CLASS_NAMES)-1

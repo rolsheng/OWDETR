@@ -137,7 +137,7 @@ dmypy.json
 /CODA/
 #models
 /models/ops/
-/output_prototype/
+/output_prototype/*.pth
 /clip/
 /output_custom_images/
 /visualize/

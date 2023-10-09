@@ -205,15 +205,17 @@ def main(args):
         # filter proposals with big overlaps
         if predict_instances is None:
             continue
-        if gt_instances is None:
-            top_instances,top_scores = predict_instances,predict_scores
-        else:
-            keep = proprecess(predict_instances,gt_instances)
-            if len(keep)==0:
-                continue
-            top_instances ,top_scores= predict_instances[keep,:], predict_scores[keep]
+        # if gt_instances is None:
+        #     top_instances,top_scores = predict_instances,predict_scores
+        # else:
+        #     keep = proprecess(predict_instances,gt_instances)
+        #     if len(keep)==0:
+        #         continue
+        #     top_instances ,top_scores= predict_instances[keep,:], predict_scores[keep]
         #save results to json
-        result_json = save_instances(top_instances,top_scores)
+        # result_json = save_instances(top_instances,top_scores)
+        result_json = save_instances(predict_instances,predict_scores)
+        
         with open(osp.join(args.save,file_prefix+'.json'),'w') as fp:
             json.dump(result_json,fp)
         #visual

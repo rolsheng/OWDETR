@@ -1,7 +1,7 @@
-from collections import deque
-import torch
-import numpy as np 
-import os 
-a = torch.ones((100,31))
-entrop = torch.mul(a,a.log2())
-print(entrop.shape)
+from pycocotools.coco import COCO
+import os
+annotation_file = 'CODA/val/annotations.json'
+file  = COCO(annotation_file)
+image_path = 'CODA/val/images'
+save_path = 'gt'
+os.makedirs(save_path,exist_ok=True)
