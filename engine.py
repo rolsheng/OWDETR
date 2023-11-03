@@ -29,6 +29,9 @@ from util.plot_utils import plot_prediction
 import matplotlib.pyplot as plt
 from copy import deepcopy
 from datasets.torchvision_datasets.open_world import Base_CLASS_NAME,VOC_COCO_CLASS_NAMES
+COLORS = [[0, 0, 0], [0, 255, 255], [255, 0,255],
+          [255,255, 0], [255, 0, 0], [0, 255, 0],[255,255,255],[0,0,255]]
+# "pedestrian", "cyclist", "car", "truck", "tram", "tricycle", "bus"
 def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
                     device: torch.device, epoch: int, nc_epoch: int, max_norm: float = 0):
@@ -191,7 +194,8 @@ def submmit_format(results,image_info = None,viz = False):
     for label,score,box in zip(labels,scores,boxes):
         class_name = VOC_COCO_CLASS_NAMES[label]
         if viz:
-            cv2.rectangle(image,(int(box[0]),int(box[1])),(int(box[2]),int(box[3])),(0,0,255),2)
+            label = min(label,7)
+            cv2.rectangle(image,(int(box[0]),int(box[1])),(int(box[2]),int(box[3])),COLORS[label],2)
             # cv2.rectangle(image,(int(box[0]),int(box[1])),(min(int(box[0]+100),w),min(int(box[1]+50),h)),(255,255,255),thickness=-1)
             cv2.putText(image,
                         "{}:{:.2f}".format(class_name if class_name in Base_CLASS_NAME else "unknown",score),

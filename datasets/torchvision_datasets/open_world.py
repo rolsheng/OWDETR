@@ -82,7 +82,9 @@ class OWDetection(VisionDataset):
                  target_transform=None,
                  transforms=None,
                  no_cats=False,
-                 filter_pct=-1):
+                 filter_pct=-1,
+                 label_path = "",
+                 experts=[]):
         super(OWDetection, self).__init__(root, transforms, transform, target_transform)
         self.images = []
         self.annotations = []
@@ -95,6 +97,8 @@ class OWDetection(VisionDataset):
         self.no_cats = no_cats
         self.args = args
         # import pdb;pdb.set_trace()
+        self.label_path = label_path
+        self.experts = experts
 
         for year, image_set in zip(years, image_sets):
 
@@ -128,7 +132,6 @@ class OWDetection(VisionDataset):
             self.image_set, self.images, self.annotations, self.imgids = map(flt, [self.image_set, self.images,
                                                                                    self.annotations, self.imgids])
         assert (len(self.images) == len(self.annotations) == len(self.imgids))
-
     @staticmethod
     def convert_image_id(img_id, to_integer=False, to_string=False, prefix='2023'):
         if to_integer:
@@ -233,7 +236,28 @@ class OWDetection(VisionDataset):
             if annotation["category_id"] not in known_classes:
                 annotation["category_id"] = total_num_class - 1
         return entry
-
+    def get_experts(self,label_path,experts,image_path):
+        image = Image.open(image_path).convert('RGB')
+        image_name = os.path.basename(image_path)
+        if len(experts)!=0:
+            labels = {}
+            ps = image_path.split('.')[-1]
+            for exp in experts:
+                if exp in ['seg_coco', 'seg_ade', 'edge', 'depth']:
+                    label_full_path = os.path.join(label_path,exp,'helpers/images',image_name.replace(f'.{ps}', '.png'))
+                    if os.stat(label_full_path).st_size>0:
+                        labels[exp] = Image.open(label_full_path).convert('L')
+                    else:
+                        labels[exp] = Image.fromarray(np.zeros(image.size[1],image.size[0])).convert('L')
+                elif exp == 'normal':
+                    label_full_path = os.path.join(label_path,exp,'helpers/images',image_name.replace(f".{ps}", '.png'))
+                    if os.stat(label_full_path).st_size>0:
+                        labels[exp] = Image.open(label_full_path).convert('RGB')
+                    else:
+                        labels[exp] = Image.fromarray(np.zeros(image.size[1],image.size[0])).convert('RGB')
+            return image,labels
+        return image,None
+                    
     def __getitem__(self, index):
         """
         Args:
@@ -243,7 +267,9 @@ class OWDetection(VisionDataset):
             tuple: (image, target) where target is a dictionary of the XML tree.
         """
         image_set = self.transforms[0]
-        img = Image.open(self.images[index]).convert('RGB')
+        
+        
+        img,experts = self.get_experts(self.label_path,self.experts,self.images[index])
         target, instances, unk_instances= self.load_instances(self.imgids[index])
         if 'train' in image_set:
             instances = self.remove_prev_class_and_unk_instances(instances)
@@ -276,9 +302,13 @@ class OWDetection(VisionDataset):
                 iscrowd=torch.zeros(len(instances), dtype=torch.uint8)
             )
         if self.transforms[-1] is not None:
-            img, target = self.transforms[-1](img, target)
+            img, target ,experts= self.transforms[-1](img, target,experts)
 
-        return img, target
+
+        if experts is not None:
+            return {'rgb':img,**experts},target
+        else:
+            return {'rgb':img},target
 
     def __len__(self):
         return len(self.images)
@@ -320,19 +350,46 @@ class CustomImageDataset(VisionDataset):
                  root, 
                  transforms=None,
                  transform = None,
-                 target_transform = None) :
+                 target_transform = None,
+                 label_path = "",
+                 experts = []) :
         super().__init__(root, transforms, transform, target_transform)
         self.images = []
         self.CLASS_NAMES = VOC_COCO_CLASS_NAMES
         self.root = root
         self.transforms = transforms
         self.images = [os.path.join(root,file_name) for file_name in os.listdir(self.root)]
-    
+
+        self.experts = experts
+        self.label_path = label_path
+
+    def get_experts(self,label_path,experts,image_path):
+        image = Image.open(image_path).convert('RGB')
+        image_name = os.path.basename(image_path)
+        if len(experts)!=0:
+            labels = {}
+            ps = image_path.split('.')[-1]
+            for exp in experts:
+                if exp in ['seg_coco', 'seg_ade', 'edge', 'depth']:
+                    label_full_path = os.path.join(label_path,exp,'test_helpers/test_images',image_name.replace(f'.{ps}', '.png'))
+                    if os.stat(label_full_path).st_size>0:
+                        labels[exp] = Image.open(label_full_path).convert('L')
+                    else:
+                        labels[exp] = Image.fromarray(np.zeros(image.size[1],image.size[0])).convert('L')
+                elif exp == 'normal':
+                    label_full_path = os.path.join(label_path,exp,'test_helpers/test_images',image_name.replace(f".{ps}", '.png'))
+                    if os.stat(label_full_path).st_size>0:
+                        labels[exp] = Image.open(label_full_path).convert('RGB')
+                    else:
+                        labels[exp] = Image.fromarray(np.zeros(image.size[1],image.size[0])).convert('RGB')
+            return image,labels
+        return image,None
     def __len__(self) -> int:
         return len(self.images)
     
     def __getitem__(self, index):
-        img = Image.open(self.images[index])
+        # img = Image.open(self.images[index])
+        img,experts = self.get_experts(self.label_path,self.experts,self.images[index])
         w,h = img.size
         target={
             "img_path":self.images[index],
@@ -340,8 +397,8 @@ class CustomImageDataset(VisionDataset):
         }
 
         if self.transforms[-1] is not None:
-            img,target = self.transforms[-1](img,target)
-        return img,target
+            img,target,experts = self.transforms[-1](img,target,experts=experts)
+        return {'rgb':img,**experts},target
         
         
 

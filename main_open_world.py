@@ -43,6 +43,10 @@ def get_args_parser():
     parser.add_argument('--clip_max_norm', default=0.1, type=float,
                         help='gradient clipping max norm')
     parser.add_argument('--sgd', action='store_true')
+    #multimodal input
+    parser.add_argument('--first_stage',default=0,type=int,help="the first stage of the training")
+    parser.add_argument('--update_modules',default=[],type=str,nargs='*',help="the modules to be updated in the first stage")
+    parser.add_argument('--experts',default=['depth'],type=str,nargs='+')
     #image resampling and object-level resampling
     parser.add_argument('--image_resample',default=False,action='store_true')
     # visual prompts
@@ -133,7 +137,7 @@ def get_args_parser():
     parser.add_argument('--NC_branch', default=False, action='store_true')
     parser.add_argument('--nc_loss_coef', default=2, type=float)
     parser.add_argument('--invalid_cls_logits', default=False, action='store_true', help='owod setting')
-    parser.add_argument('--nc_epoch', default=0, type=int)
+    parser.add_argument('--nc_epoch', default=9, type=int)
     parser.add_argument('--num_classes', default=31, type=int)
     parser.add_argument('--backbone', default='dino_resnet50', type=str, help="Name of the convolutional backbone to use")
     parser.add_argument('--dataset', default='owod')
@@ -160,7 +164,7 @@ def main(args):
     torch.manual_seed(seed)
     np.random.seed(seed)
     random.seed(seed)
-
+    #build model
     model, criterion, postprocessors = build_model(args)
     model.to(device)
 
@@ -168,6 +172,7 @@ def main(args):
     print(model_without_ddp)
     n_parameters = sum(p.numel() for p in model.parameters() if p.requires_grad)
     print('number of params:', n_parameters)
+    #build dataset and dataloader
     if args.test:
         assert args.input and args.inference_ckpt
         dataset_test = get_custom_dataset(args)
@@ -241,7 +246,6 @@ def main(args):
                 out = True
                 break
         return out
-
     param_dicts = [
         {
             "params":
@@ -393,8 +397,8 @@ def get_datasets(args):
     if args.dataset == 'owod':
         train_set = args.train_set
         test_set = args.test_set
-        dataset_train = OWDetection(args, args.owod_path, ["2007"], image_sets=[args.train_set], transforms=make_coco_transforms(args.train_set))
-        dataset_val = OWDetection(args, args.owod_path, ["2007"], image_sets=[args.test_set], transforms=make_coco_transforms(args.test_set))
+        dataset_train = OWDetection(args, args.owod_path, ["2007"], image_sets=[args.train_set], transforms=make_coco_transforms(args.train_set),label_path="helpers/labels",experts=args.experts)
+        dataset_val = OWDetection(args, args.owod_path, ["2007"], image_sets=[args.test_set], transforms=make_coco_transforms(args.test_set),label_path="helpers/labels",experts=args.experts)
     else:
         raise ValueError("Wrong dataset name")
 
@@ -408,6 +412,8 @@ def get_datasets(args):
 def get_custom_dataset(args):
     print(args.input)
     dataset = CustomImageDataset(root=args.input,
+                                 label_path="test_helpers/labels",
+                                 experts=args.experts,
                                  transforms=make_coco_transforms('test'))
     print(dataset)
     return dataset

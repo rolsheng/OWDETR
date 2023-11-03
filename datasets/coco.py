@@ -175,7 +175,7 @@ def make_coco_transforms(image_set):
     if 'test' in image_set:
         t.append(['test'])
         t.append(T.Compose([
-            T.RandomResize([720], max_size=1280),
+            # T.RandomResize([720], max_size=1280),
             normalize,
         ]))
         return t

@@ -1,14 +1,25 @@
 #!/usr/bin/env bash
 
 set -x
+# echo "Only Update Modality-related modules on th first Traing Stage "
+# EXP_DIR=exps/s1_OWDETR_t1
+# PY_ARGS=${@:1}
+# python -u main_open_world.py \
+#     --output_dir ${EXP_DIR}  --eval_every 1 \
+#     --PREV_INTRODUCED_CLS 0 --CUR_INTRODUCED_CLS 4 --train_set 't1_train' --test_set 'val'  \
+#     --first_stage 21 --update_modules 'backbone.0.conv1' 'input_proj' --experts 'depth' \
+#     --lr 2e-3 --epochs 21 --featdim 1024 --NC_branch --nc_loss_coef 0.1  \
+#     --pretrain 'ckpt/pretrained_weight_owdetr_depth.pth' \
+#     ${PY_ARGS} 
 
+echo "Full patameter tuning on the second stage"
 EXP_DIR=exps/OWDETR_t1
 PY_ARGS=${@:1}
 python -u main_open_world.py \
     --output_dir ${EXP_DIR}  --eval_every 1 \
     --PREV_INTRODUCED_CLS 0 --CUR_INTRODUCED_CLS 4 --train_set 't1_train' --test_set 'val'  \
     --unmatched_boxes --epochs 20 --top_unk 5 --featdim 1024 --NC_branch --nc_loss_coef 0.1 --nc_epoch 9 \
-    --pretrain 'ckpt/pretrained_weight_owdetr.pth' \
+    --pretrain 'ckpt/first_stage_pretrained_weight_depth.pth' \
     --enable_adaptive_pseudo --pseudo_store_path 'exps/loss_memory'  --adaptive_update_Iter 300 --memory_length 100 \
     ${PY_ARGS} 
 

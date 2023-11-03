@@ -15,6 +15,7 @@ import torch.nn.functional as F
 from torch import nn
 import math
 import pickle
+from collections import OrderedDict
 from util import box_ops
 from util.store import Store,Memory_loss
 from util.misc import (NestedTensor, nested_tensor_from_tensor_list,
@@ -39,7 +40,8 @@ class DeformableDETR(nn.Module):
     """ This is the Deformable DETR module that performs object detection """
     def __init__(self, backbone, transformer, num_classes, num_queries, num_feature_levels,
                  aux_loss=True, with_box_refine=False, two_stage=False, 
-                 unmatched_boxes=False, novelty_cls=False, featdim=1024,visual_prompts=""):
+                 unmatched_boxes=False, novelty_cls=False, featdim=1024,
+                 experts = [],visual_prompts="",freeze_weight=False,update_modules=[]):
         """ Initializes the model.
         Parameters:
             backbone: torch module of the backbone to be used. See backbone.py
@@ -53,6 +55,7 @@ class DeformableDETR(nn.Module):
         """
         super().__init__()
         self.visual_prompts = visual_prompts
+        self.num_experts = len(experts)
 
         self.num_queries = num_queries
         self.transformer = transformer
@@ -77,12 +80,12 @@ class DeformableDETR(nn.Module):
             for _ in range(num_backbone_outs):
                 in_channels = backbone.num_channels[_]
                 input_proj_list.append(nn.Sequential(
-                    nn.Conv2d(in_channels, hidden_dim, kernel_size=1),
+                    nn.Conv2d(in_channels*(self.num_experts+1), hidden_dim, kernel_size=1),
                     nn.GroupNorm(32, hidden_dim),
                 ))
             for _ in range(num_feature_levels - num_backbone_outs):
                 input_proj_list.append(nn.Sequential(
-                    nn.Conv2d(in_channels, hidden_dim, kernel_size=3, stride=2, padding=1),
+                    nn.Conv2d(in_channels*(self.num_experts+1), hidden_dim, kernel_size=3, stride=2, padding=1),
                     nn.GroupNorm(32, hidden_dim),
                 ))
                 in_channels = hidden_dim
@@ -90,7 +93,7 @@ class DeformableDETR(nn.Module):
         else:
             self.input_proj = nn.ModuleList([
                 nn.Sequential(
-                    nn.Conv2d(backbone.num_channels[0], hidden_dim, kernel_size=1),
+                    nn.Conv2d(backbone.num_channels[0]*(self.num_experts+1), hidden_dim, kernel_size=1),
                     nn.GroupNorm(32, hidden_dim),
                 )])
         self.backbone = backbone
@@ -131,7 +134,19 @@ class DeformableDETR(nn.Module):
             self.transformer.decoder.class_embed = self.class_embed
             for box_embed in self.bbox_embed:
                 nn.init.constant_(box_embed.layers[-1].bias.data[2:], 0.0)
-
+        if freeze_weight:
+            assert len(update_modules)>0,'no extra modules to update'
+            # only update modality-related parameters on the first stage
+            for name,p in self.named_parameters():
+                if not self.match_name_keywords(name,update_modules):
+                    p.requires_grad_(False)
+    def match_name_keywords(self,n,name_keywords):
+        out = False
+        for b in name_keywords:
+            if b in n:
+                out = True
+                break
+        return out
     def forward(self, samples: NestedTensor):
         """ The forward expects a NestedTensor, which consists of:
                - samples.tensor: batched images, of shape [batch_size x 3 x H x W]
@@ -152,21 +167,11 @@ class DeformableDETR(nn.Module):
 
         srcs = []
         masks = []
-        if self.featdim == 512:
-            dim_index = 0
-        elif self.featdim == 1024:
-            dim_index = 1
-        else:
-            dim_index = 2
 
         for l, feat in enumerate(features):
-            src, mask = feat.decompose()
-            ## [Info] extracting the resnet features which are used for selecting unmatched queries
-            if self.unmatched_boxes:
-                if l == dim_index:
-                    resnet_1024_feature = src.clone() # 2X1024X61X67 
-            else:
-                resnet_1024_feature = None
+            tensors, mask = feat.decompose()
+            # src = torch.sum(torch.stack([tensors[k] for k in tensors],dim=0),dim=0)
+            src = torch.cat([tensors[k] for k in tensors],dim=1)
             srcs.append(self.input_proj[l](src))
             masks.append(mask)
             assert mask is not None
@@ -174,12 +179,15 @@ class DeformableDETR(nn.Module):
             _len_srcs = len(srcs)
             for l in range(_len_srcs, self.num_feature_levels):
                 if l == _len_srcs:
-                    src = self.input_proj[l](features[-1].tensors)
+                    tensors = features[-1].decompose()[0]
+                    # src = torch.sum(torch.stack([tensors[k] for k in tensors],dim=0),dim=0)
+                    src = torch.cat([tensors[k] for k in tensors],dim=1)
+                    src = self.input_proj[l](src)
                 else:
                     src = self.input_proj[l](srcs[-1])
                 m = samples.mask
                 mask = F.interpolate(m[None].float(), size=src.shape[-2:]).to(torch.bool)[0]
-                pos_l = self.backbone[1](NestedTensor(src, mask)).to(src.dtype)
+                pos_l = self.backbone[1](NestedTensor(OrderedDict([('rgb',src)]), mask)).to(src.dtype)
                 srcs.append(src)
                 masks.append(mask)
                 pos.append(pos_l)
@@ -225,10 +233,10 @@ class DeformableDETR(nn.Module):
         if self.novelty_cls:
             output_class_nc = torch.stack(outputs_classes_nc)
             
-        out = {'pred_logits': outputs_class[-1], 'pred_boxes': outputs_coord[-1], 'resnet_1024_feat': resnet_1024_feature}
+        out = {'pred_logits': outputs_class[-1], 'pred_boxes': outputs_coord[-1]}
 
         if self.novelty_cls:
-            out = {'pred_logits': outputs_class[-1], 'pred_nc_logits': output_class_nc[-1], 'pred_boxes': outputs_coord[-1], 'resnet_1024_feat': resnet_1024_feature}
+            out = {'pred_logits': outputs_class[-1], 'pred_nc_logits': output_class_nc[-1], 'pred_boxes': outputs_coord[-1]}
 
         if self.aux_loss:
             out['aux_outputs'] = self._set_aux_loss(outputs_class, outputs_coord, output_class_nc=None)
@@ -497,10 +505,10 @@ class SetCriterion(nn.Module):
                 combined = torch.cat((queries, self._get_src_single_permutation_idx(indices[i], i)[-1])) ## need to fix the indexing
                 boxes = outputs_without_aux['pred_boxes'][i] #[unmatched_indices,:]
                 #compute matching score for a proposal with classification logits 
-                pred_logits = outputs_without_aux['pred_logits'][i].sigmoid()
-                match_scores = torch.sum(pred_logits,dim=1)
-                uncertain = -torch.sum(pred_logits*pred_logits.log2(),dim=1)
-                img = samples.tensors[i].cpu().permute(1,2,0).numpy()
+                pred_probs = outputs_without_aux['pred_logits'][i].clone().sigmoid()
+                pred_probs[:,self.invalid_cls_logits] = 1e-10
+                match_scores = torch.sum(pred_probs,dim=1)
+                img = samples.tensors['rgb'][i].cpu().permute(1,2,0).numpy()
                 h, w = img.shape[:-1]
                 img_w = torch.tensor(w, device=owod_device)
                 img_h = torch.tensor(h, device=owod_device)
@@ -516,15 +524,13 @@ class SetCriterion(nn.Module):
                 bb = unmatched_boxes
                 
                 match_scores = torch.div(match_scores,torch.max(match_scores))
-                uncertain = torch.div(uncertain,torch.max(uncertain))
 
-                match_scores = match_scores*uncertain
                 if len(unk_boxes)==0:
                     scores_bb = match_scores 
                 else:
                     IOU,_ = box_ops.box_iou(bb,unk_boxes)[0].max(dim=1)
                     scores_bb = IOU**self.loss_memory.Ws * match_scores**self.loss_memory.Wf 
-                scores_bb[indices[i][0]] = -10e10
+                scores_bb[indices[i][0]] = 0
                 _, topk_inds =  torch.topk(scores_bb, self.top_unk)
                 topk_inds = torch.as_tensor(topk_inds)    
                 topk_inds = topk_inds.cpu()
@@ -562,14 +568,12 @@ class SetCriterion(nn.Module):
                     queries = torch.arange(aux_owod_outputs['pred_logits'].shape[1])
                     for i in range(len(indices)):
                         combined = torch.cat((queries, self._get_src_single_permutation_idx(indices[i], i)[-1])) ## need to fix the indexing
-                        # uniques, counts = combined.unique(return_counts=True)
-                        # unmatched_indices = uniques[counts == 1]
                         boxes = aux_owod_outputs['pred_boxes'][i] #[unmatched_indices,:]
                         #compute matching score for a proposal with classification logits 
-                        pred_logits = outputs_without_aux['pred_logits'][i]
-                        match_scores = torch.sum(pred_logits,dim=1)
-                        uncertain = -torch.sum(pred_logits*pred_logits.log2(),dim=1)
-                        img = samples.tensors[i].cpu().permute(1,2,0).numpy()
+                        pred_probs = outputs_without_aux['pred_logits'][i].clone().sigmoid()
+                        pred_probs[:,self.invalid_cls_logits] = 1e-10
+                        match_scores = torch.sum(pred_probs,dim=1)
+                        img = samples.tensors['rgb'][i].cpu().permute(1,2,0).numpy()
                         h, w = img.shape[:-1]
                         img_w = torch.tensor(w, device=owod_device)
                         img_h = torch.tensor(h, device=owod_device)
@@ -583,17 +587,17 @@ class SetCriterion(nn.Module):
                         
                         scores_bb = torch.zeros(queries.shape[0]).to(unmatched_boxes)
                         bb = unmatched_boxes
+
                         match_scores = torch.div(match_scores,torch.max(match_scores))
-                        uncertain = torch.div(uncertain,torch.max(uncertain))
-                        match_scores = match_scores*uncertain
+                        
                         if len(unk_boxes)==0:
                             scores_bb = match_scores 
                         else:
                             IOU,_ = box_ops.box_iou(bb,unk_boxes)[0].max(dim=1)
                             scores_bb = IOU**self.loss_memory.Ws * match_scores**self.loss_memory.Wf 
-                        scores_bb[indices[i][0]] = -10e10
+                        scores_bb[indices[i][0]] = 0
+                        _, topk_inds =  torch.topk(scores_bb, self.top_unk)
                         topk_inds = torch.as_tensor(topk_inds)
-
                         topk_inds = topk_inds.cpu()
                         unk_label = torch.as_tensor([self.num_classes-1], device=owod_device)
                         owod_targets[i]['labels'] = torch.cat((owod_targets[i]['labels'], unk_label.repeat_interleave(self.top_unk)))
@@ -734,7 +738,10 @@ def build(args):
         unmatched_boxes=args.unmatched_boxes,
         novelty_cls=args.NC_branch,
         featdim=args.featdim,
-        visual_prompts=category_embeddings
+        experts = args.experts,
+        visual_prompts=category_embeddings,
+        freeze_weight=args.first_stage>0,
+        update_modules=args.update_modules
     )
     if args.masks:
         model = DETRsegm(model, freeze_detr=(args.frozen_weights is not None))

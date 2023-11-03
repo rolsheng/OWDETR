@@ -34,7 +34,7 @@ class PositionEmbeddingSine(nn.Module):
         self.scale = scale
 
     def forward(self, tensor_list: NestedTensor):
-        x = tensor_list.tensors
+        x = tensor_list.tensors['rgb']
         mask = tensor_list.mask
         assert mask is not None
         not_mask = ~mask

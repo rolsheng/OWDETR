@@ -318,19 +318,30 @@ def _max_by_axis(the_list):
 
 def nested_tensor_from_tensor_list(tensor_list: List[Tensor]):
     # TODO make this more general
-    if tensor_list[0].ndim == 3:
+    extra_keys = list(tensor_list[0])
+    
+    if tensor_list[0]['rgb'].ndim == 3:
         # TODO make it support different-sized images
-        max_size = _max_by_axis([list(img.shape) for img in tensor_list])
+        max_size = _max_by_axis([list(img['rgb'].shape) for img in tensor_list])
         # min_size = tuple(min(s) for s in zip(*[img.shape for img in tensor_list]))
         batch_shape = [len(tensor_list)] + max_size
         b, c, h, w = batch_shape
-        dtype = tensor_list[0].dtype
-        device = tensor_list[0].device
-        tensor = torch.zeros(batch_shape, dtype=dtype, device=device)
+        dtype = tensor_list[0]['rgb'].dtype
+        device = tensor_list[0]['rgb'].device
+
+        tensor = {}
+        for k in extra_keys:
+            if k in ['depth','edge']:
+                tensor[k] = torch.zeros((b,1,h,w),dtype = dtype,device = device)
+            else:    
+                tensor[k] = torch.zeros(batch_shape,dtype=dtype, device=device)
         mask = torch.ones((b, h, w), dtype=torch.bool, device=device)
-        for img, pad_img, m in zip(tensor_list, tensor, mask):
-            pad_img[: img.shape[0], : img.shape[1], : img.shape[2]].copy_(img)
-            m[: img.shape[1], :img.shape[2]] = False
+        for idx,(img, m) in enumerate(zip(tensor_list, mask)):
+            # pad_img[: img['rgb'].shape[0], : img['rgb'].shape[1], : img['rgb'].shape[2]].copy_(img['rgb'])
+            m[: img['rgb'].shape[1], :img['rgb'].shape[2]] = False
+            for k in extra_keys:
+                tensor[k][idx][: img[k].shape[0], : img[k].shape[1], : img[k].shape[2]].copy_(img[k])
+            
     else:
         raise ValueError('not supported')
     return NestedTensor(tensor, mask)
@@ -342,8 +353,7 @@ class NestedTensor(object):
         self.mask = mask
 
     def to(self, device, non_blocking=False):
-        # type: (Device) -> NestedTensor # noqa
-        cast_tensor = self.tensors.to(device, non_blocking=non_blocking)
+        cast_tensor = {k:v.to(device, non_blocking=non_blocking) for k,v in self.tensors.items()}
         mask = self.mask
         if mask is not None:
             assert mask is not None
@@ -353,7 +363,8 @@ class NestedTensor(object):
         return NestedTensor(cast_tensor, cast_mask)
 
     def record_stream(self, *args, **kwargs):
-        self.tensors.record_stream(*args, **kwargs)
+        for k,_ in self.tensors.items():
+            self.tensors[k].record_stream(*args, **kwargs)
         if self.mask is not None:
             self.mask.record_stream(*args, **kwargs)
 

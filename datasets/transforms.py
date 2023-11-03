@@ -22,9 +22,11 @@ from util.box_ops import box_xyxy_to_cxcywh
 from util.misc import interpolate
 from PIL import Image
 
-def crop(image, target, region):
+def crop(image, target, experts,region):
     cropped_image = F.crop(image, *region)
-
+    if experts is not None:
+        for exp in experts:
+            experts[exp] = F.crop(experts[exp],*region)
     target = target.copy()
     i, j, h, w = region
 
@@ -76,12 +78,14 @@ def crop(image, target, region):
     #     keep = torch.all(cropped_boxes[:, 1, :] > cropped_boxes[:, 0, :], dim=1)
     #     for unk_field in unk_fields:
     #         target[unk_field] = target[unk_field][keep]
-    return cropped_image, target
+    return cropped_image, target,experts
 
 
-def hflip(image, target):
+def hflip(image, target,experts):
     flipped_image = F.hflip(image)
-
+    if experts is not None:
+        for exp in experts:
+            experts[exp] = F.hflip(experts[exp])
     w, h = image.size
 
     target = target.copy()
@@ -96,10 +100,10 @@ def hflip(image, target):
     if "masks" in target:
         target['masks'] = target['masks'].flip(-1)
 
-    return flipped_image, target
+    return flipped_image, target,experts
 
 
-def resize(image, target, size, max_size=None):
+def resize(image, target,experts, size, max_size=None):
     # size can be min_size (scalar) or (w, h) tuple
 
     def get_size_with_aspect_ratio(image_size, size, max_size=None):
@@ -130,9 +134,11 @@ def resize(image, target, size, max_size=None):
 
     size = get_size(image.size, size, max_size)
     rescaled_image = F.resize(image, size)
-
+    if experts is not None:
+        for exp in experts:
+            experts[exp] = F.resize(experts[exp],size)
     if target is None:
-        return rescaled_image, None
+        return rescaled_image, None,experts
 
     ratios = tuple(float(s) / float(s_orig) for s, s_orig in zip(rescaled_image.size, image.size))
     ratio_width, ratio_height = ratios
@@ -158,7 +164,7 @@ def resize(image, target, size, max_size=None):
         target['masks'] = interpolate(
             target['masks'][:, None].float(), size, mode="nearest")[:, 0] > 0.5
 
-    return rescaled_image, target
+    return rescaled_image, target,experts
 
 
 def pad(image, target, padding):
@@ -188,11 +194,11 @@ class RandomSizeCrop(object):
         self.min_size = min_size
         self.max_size = max_size
 
-    def __call__(self, img: PIL.Image.Image, target: dict):
+    def __call__(self, img: PIL.Image.Image, target: dict,experts=None):
         w = random.randint(self.min_size, min(img.width, self.max_size))
         h = random.randint(self.min_size, min(img.height, self.max_size))
         region = T.RandomCrop.get_params(img, [h, w])
-        return crop(img, target, region)
+        return crop(img, target, experts,region)
 class RandomResizeCrop(object):
     def __init__(self,size,scale=(0.4,1.0),ratio=(3.0 / 4.0, 4.0 / 3.0), interpolation=Image.BICUBIC):
         self.size = size
@@ -253,10 +259,10 @@ class RandomHorizontalFlip(object):
     def __init__(self, p=0.5):
         self.p = p
 
-    def __call__(self, img, target):
+    def __call__(self, img, target,experts = None):
         if random.random() < self.p:
-            return hflip(img, target)
-        return img, target
+            return hflip(img, target,experts)
+        return img, target,experts
 
 
 class RandomResize(object):
@@ -265,9 +271,9 @@ class RandomResize(object):
         self.sizes = sizes
         self.max_size = max_size
 
-    def __call__(self, img, target=None):
+    def __call__(self, img, target=None,experts=None):
         size = random.choice(self.sizes)
-        return resize(img, target, size, self.max_size)
+        return resize(img, target, experts,size, self.max_size)
 class Resize(object):
     def __init__(self,size,interpolation=F.InterpolationMode.BICUBIC):
         self.interpolation = interpolation
@@ -295,15 +301,21 @@ class RandomSelect(object):
         self.transforms2 = transforms2
         self.p = p
 
-    def __call__(self, img, target):
+    def __call__(self, img, target,experts=None):
         if random.random() < self.p:
-            return self.transforms1(img, target)
-        return self.transforms2(img, target)
+            return self.transforms1(img, target,experts)
+        return self.transforms2(img, target,experts)
 
 
 class ToTensor(object):
-    def __call__(self, img, target):
-        return F.to_tensor(img), target
+    def __call__(self, img, target,experts=None):
+        if experts is not None:
+            for exp in experts:
+                if exp in ['depth','normal','edge']:
+                    experts[exp] = F.to_tensor(experts[exp])
+                else:
+                    experts[exp] = F.to_tensor(experts[exp]*255).long()
+        return F.to_tensor(img), target,experts
 
 
 class RandomErasing(object):
@@ -320,10 +332,10 @@ class Normalize(object):
         self.mean = mean
         self.std = std
 
-    def __call__(self, image, target=None):
+    def __call__(self, image, target=None,experts=None):
         image = F.normalize(image, mean=self.mean, std=self.std)
         if target is None:
-            return image, None
+            return image, None,experts
         target = target.copy()
         h, w = image.shape[-2:]
         if "boxes" in target:
@@ -336,17 +348,17 @@ class Normalize(object):
             boxes = box_xyxy_to_cxcywh(boxes)
             boxes = boxes / torch.tensor([w, h, w, h], dtype=torch.float32)
             target["unk_boxes"] = boxes
-        return image, target
+        return image, target,experts
 
 
 class Compose(object):
     def __init__(self, transforms):
         self.transforms = transforms
 
-    def __call__(self, image, target):
+    def __call__(self, image, target,experts=None):
         for t in self.transforms:
-            image, target = t(image, target)
-        return image, target
+            image, target,experts = t(image, target,experts)
+        return image, target,experts
 
     def __repr__(self):
         format_string = self.__class__.__name__ + "("

@@ -136,6 +136,7 @@ dmypy.json
 /SODA10M/
 /CODA/
 #models
+/helpers/
 /models/ops/
 /output_prototype/*.pth
 /clip/

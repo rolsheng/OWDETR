@@ -5,6 +5,28 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "first_stage",
+            "type": "python",
+            "request": "launch",
+            "program": "main_open_world.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "--output_dir", "exps/s1_OWDETR_t1",
+                "--eval_every", "1", 
+    "--PREV_INTRODUCED_CLS", "0", "--CUR_INTRODUCED_CLS", "4",
+    "--train_set", "t1_train",
+    "--test_set", "val",
+    "--first_stage","50",
+    "--update_modules", "backbone.0.conv1", "input_proj",
+    "--experts", "depth",
+    "--lr", "2e-3", "--epochs", "50", "--featdim", "1024",
+    "--pretrain" ,"ckpt/pretrained_weight_owdetr_2x2.pth"
+              
+            ]
+        },
+
+        {
             "name": "inferece_custom_images",
             "type": "python",
             "request": "launch",
@@ -39,11 +61,11 @@
                 "--eval_every",
                 "1",
                 "--PREV_INTRODUCED_CLS",
-                "22",
+                "0",
                 "--CUR_INTRODUCED_CLS",
-                "8",
+                "4",
                 "--train_set",
-                "t4_train",
+                "t1_train",
                 "--test_set",
                 "val",
                 "--unmatched_boxes",
@@ -57,9 +79,9 @@
                 "--nc_loss_coef",
                 "0.1",
                 "--nc_epoch",
-                "-1",
+                "-9",
                 "--pretrain",
-                "ckpt/pretrained_weight_owdetr.pth",
+                "ckpt/pretrained_weight_owdetr_2x2.pth",
                 "--enable_adaptive_pseudo", 
                 "--pseudo_store_path", "exps/loss_memory",
                 "--adaptive_update_Iter","300",

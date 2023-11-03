@@ -67,7 +67,7 @@ class FrozenBatchNorm2d(torch.nn.Module):
 
 class BackboneBase(nn.Module):
 
-    def __init__(self, backbone: nn.Module, train_backbone: bool, return_interm_layers: bool):
+    def __init__(self, backbone: nn.Module, train_backbone: bool, return_interm_layers: bool,experts:list):
         super().__init__()
         for name, parameter in backbone.named_parameters():
             if not train_backbone or 'layer2' not in name and 'layer3' not in name and 'layer4' not in name:
@@ -82,16 +82,58 @@ class BackboneBase(nn.Module):
             self.strides = [32]
             self.num_channels = [2048]
         self.body = IntermediateLayerGetter(backbone, return_layers=return_layers)
+        #modal-specific stem conv
+        self.conv1=nn.ModuleDict()
+        self.experts = experts
+        self.return_layers = return_layers
+        for e in self.experts:
+            if e in ['depth','edge']:
+                self.conv1[e] = nn.Sequential(
+                    nn.Conv2d(in_channels=1,out_channels=32,kernel_size=3,stride=2,padding=1,bias=False),
+                    nn.BatchNorm2d(32),
+                    nn.ReLU(),
+                    nn.Conv2d(in_channels=32,out_channels=64,kernel_size=3,stride=2,padding=1,bias=False),
+                    nn.BatchNorm2d(64),
+                    nn.ReLU(),
+                    nn.Conv2d(in_channels=64,out_channels=64,kernel_size=1,stride=1,padding=0,bias=False),
+
+                )
+            else:
+                self.conv1[e] = nn.Sequential(
+                    nn.Conv2d(in_channels=3,out_channels=32,kernel_size=3,stride=2,padding=1,bias=False),
+                    nn.BatchNorm2d(32),
+                    nn.ReLU(),
+                    nn.Conv2d(in_channels=32,out_channels=64,kernel_size=3,stride=2,padding=1,bias=False),
+                    nn.BatchNorm2d(64),
+                    nn.ReLU(),
+                    nn.Conv2d(in_channels=64,out_channels=64,kernel_size=1,stride=1,padding=0,bias=False)
+                )
+            
 
     def forward(self, tensor_list: NestedTensor):
-        xs = self.body(tensor_list.tensors)
-        out: Dict[str, NestedTensor] = {}
-        for name, x in xs.items():
+        out = {e:OrderedDict() for e in tensor_list.tensors}
+        out['rgb'] = self.body(tensor_list.tensors['rgb'])
+        for e in self.experts:
+            xe = tensor_list.tensors[e]
+            xe = self.conv1[e](xe)
+            for name,module in self.body.items():
+                if 'layer' in name:
+                    xe = module(xe)
+                    if name in self.return_layers:
+                        out_name = self.return_layers[name]
+                        out[e][out_name] = xe
+        
+        wrapped_out: Dict[str, NestedTensor] = {}
+        for name, x in out['rgb'].items():
             m = tensor_list.mask
             assert m is not None
             mask = F.interpolate(m[None].float(), size=x.shape[-2:]).to(torch.bool)[0]
-            out[name] = NestedTensor(x, mask)
-        return out
+            lvl_out = OrderedDict()
+            lvl_out['rgb'] = out['rgb'][name]
+            for e in self.experts:
+                lvl_out[e] = out[e][name]
+            wrapped_out[name] = NestedTensor(lvl_out, mask)
+        return wrapped_out
 
 
 class Backbone(BackboneBase):
@@ -99,6 +141,7 @@ class Backbone(BackboneBase):
     def __init__(self, name: str,
                  train_backbone: bool,
                  return_interm_layers: bool,
+                 experts:list,
                  dilation: bool):
         norm_layer = FrozenBatchNorm2d
         if name == 'resnet50':
@@ -113,7 +156,7 @@ class Backbone(BackboneBase):
                 state_dict = torch.load("ckpt/dino_resnet50_pretrain.pth")
                 backbone.load_state_dict(state_dict, strict=False)
         assert name not in ('resnet18', 'resnet34'), "number of channels are hard coded"
-        super().__init__(backbone, train_backbone, return_interm_layers)
+        super().__init__(backbone, train_backbone, return_interm_layers,experts)
         if dilation:
             self.strides[-1] = self.strides[-1] // 2
 
@@ -133,7 +176,7 @@ class Joiner(nn.Sequential):
 
         # position encoding
         for x in out:
-            pos.append(self[1](x).to(x.tensors.dtype))
+            pos.append(self[1](x).to(x.tensors['rgb'].dtype))
 
         return out, pos
 
@@ -142,6 +185,6 @@ def build_backbone(args):
     position_embedding = build_position_encoding(args)
     train_backbone = args.lr_backbone > 0
     return_interm_layers = args.masks or (args.num_feature_levels > 1)
-    backbone = Backbone(args.backbone, train_backbone, return_interm_layers, args.dilation)
+    backbone = Backbone(args.backbone, train_backbone, return_interm_layers, args.experts,args.dilation)
     model = Joiner(backbone, position_embedding)
     return model
