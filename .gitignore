@@ -146,3 +146,6 @@ dmypy.json
 /*predict
 /sam_predict/
 /vis_semantic_sam/
+/helpers/
+/test_helpers/
+/vis_semantic_sam/
